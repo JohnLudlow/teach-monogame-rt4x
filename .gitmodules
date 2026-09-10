@@ -1,0 +1,3 @@
+[submodule "monogame-rt4x"]
+	path = monogame-rt4x
+	url = https://github.com/JohnLudlow/monogame-rt4x/
