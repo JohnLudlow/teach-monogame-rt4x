@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 2 — Convert to a Content Builder project</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 0002 · 20 minutes</p>
+    <h1>Replace legacy MGCB with a Content Builder project</h1>
+    <p>Your template currently uses the legacy <code>Content.mgcb</code> file and <code>MonoGame.Content.Builder.Task</code>. Convert now—before the top-down prototype acquires assets—so content rules live in reviewed C# alongside the game.</p>
+
+    <h2>Model</h2>
+    <p>Read the <a href="../reference/content-builder-project-map.html">Content Builder project map</a>. The game still loads from <code>Content</code>; a separate console project produces that folder during the build.</p>
+
+    <h2>Your exercise</h2>
+    <ol class="steps">
+      <li>From <code>monogame-rt4x</code>, create a sibling builder project and add it to the solution:
+        <pre>dotnet new mgcb -o FourxGame.ContentBuilder
+dotnet sln monogame-rt4x.slnx add FourxGame.ContentBuilder/FourxGame.ContentBuilder.csproj</pre>
+      </li>
+      <li>In <code>FourxGame.MonoGame/FourxGame.MonoGame.csproj</code>, remove the <code>MonoGame.Content.Builder.Task</code> package reference. Keep <code>MonoGame.Framework.DesktopGL</code>.</li>
+      <li>Before the final <code>&lt;/Project&gt;</code>, add this MSBuild import:
+        <pre>&lt;Import Project="..\FourxGame.ContentBuilder\BuildContent.targets" /&gt;</pre>
+      </li>
+      <li>Remove the legacy template artifacts: <code>FourxGame.MonoGame/Content/</code> (including <code>Content.mgcb</code> and its generated <code>bin</code> directory) and <code>FourxGame.MonoGame/.config/</code> (the legacy <code>dotnet-tools.json</code> location). Do not remove <code>Content.RootDirectory = "Content"</code> from <code>Game1</code>.</li>
+      <li>Inspect <code>FourxGame.ContentBuilder/Builder/Builder.cs</code>. Leave its collection empty for now: there are no real assets to build yet. Its <code>Assets/readme.txt</code> merely marks the source-asset location.</li>
+    </ol>
+
+    <h2>Fast feedback</h2>
+    <pre>dotnet list FourxGame.MonoGame/FourxGame.MonoGame.csproj package
+dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>The package list must not contain <code>MonoGame.Content.Builder.Task</code>. The build should then succeed with the builder project included, and the same cornflower-blue window should run. If it fails, paste the first error and your game <code>.csproj</code>; do not restore the legacy task as a workaround.</p>
+
+    <h2>Retrieval check</h2>
+    <p>Answer both prompts <strong>before</strong> opening the answer:</p>
+    <ol class="steps">
+      <li>Where do raw PNG files belong after this conversion?</li>
+      <li>What does the <code>BuildContent.targets</code> import make the game build do?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <p>Raw PNG files belong in <code>FourxGame.ContentBuilder/Assets/</code>, then an explicit rule in <code>Builder.cs</code> selects them for processing. The import hooks content building into the game build and makes generated content available in the game output.</p>
+    </details>
+
+    <h2>Next</h2>
+    <p>If you need to revisit the prerequisite, return to <a href="0001-verify-the-game-loop.html">Lesson 1 — Verify the game loop</a>. Once all three fast-feedback checks pass, report completion; then we will make the first top-down visual: a camera-independent grid, without committing to terrain generation yet.</p>
+
+    <footer>
+      Primary source: <a href="https://docs.monogame.net/articles/getting_started/content_pipeline/content_builder_project.html?tabs=vscode">MonoGame: Working with new Content Builder Projects</a>. Ask me if an MSBuild import or generated builder file is unclear.
+    </footer>
+  </main>
+</body>
+</html>

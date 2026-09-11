@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MonoGame frame loop</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · MonoGame</p>
+    <h1>The frame loop</h1>
+    <p>MonoGame repeatedly calls two application-owned methods:</p>
+    <pre>Update(GameTime gameTime)  // advance simulation
+Draw(GameTime gameTime)    // render the current simulation state</pre>
+    <dl>
+      <dt><strong>Update</strong></dt>
+      <dd>Read input, apply time-scaled simulation changes, decide game state. Do not draw here.</dd>
+      <dt><strong>Draw</strong></dt>
+      <dd>Clear the back buffer and render the state produced by <code>Update</code>. Do not make game decisions here.</dd>
+      <dt><strong>GameTime.ElapsedGameTime</strong></dt>
+      <dd>The elapsed real time since the preceding update. Use it to make movement and timers independent of frame rate.</dd>
+    </dl>
+    <p class="callout"><strong>RT4X rule:</strong> later, game speed scales simulation time in <code>Update</code>; it should not alter rendering cadence.</p>
+    <p>Source: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Game.html">MonoGame <code>Game</code> API</a>.</p>
+  </main>
+</body>
+</html>
