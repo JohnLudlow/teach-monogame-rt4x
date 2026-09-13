@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 4 — Highlight the hovered cell</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 0004 · 20 minutes</p>
+    <h1>Highlight the cell under the mouse</h1>
+    <p>An RT4X map only becomes useful when the player can point at tiles intentionally. Your grid now renders; next, make the game detect which cell the mouse is over and draw a visible highlight on that one cell.</p>
+
+    <h2>What you need to know</h2>
+    <p>Because your grid is still in screen space, mouse-to-cell mapping is simple: subtract the grid origin, divide by the cell size, and reject anything outside the configured row and column bounds. Read the <a href="../reference/mouse-to-grid-cell.html">mouse-to-grid-cell reference</a> first, then keep the <a href="../reference/monogame-frame-loop.html">frame-loop reference</a> in mind: input sampling and hovered-cell state belong in <code>Update</code>, while the visual highlight belongs in <code>Draw</code>.</p>
+
+    <h2>Your exercise</h2>
+    <ol class="steps">
+      <li>In <code>monogame-rt4x/FourxGame.MonoGame/Game1.cs</code>, add state for the currently hovered cell. Keep it simple: either a nullable pair of grid coordinates, or a boolean plus row and column fields.</li>
+      <li>In <code>Update</code>, call <code>Mouse.GetState()</code>. Convert the mouse position into grid-local coordinates by subtracting the same origin you used to place the grid.</li>
+      <li>If the mouse lands inside the grid bounds, store the hovered cell. If it lands outside, clear the hovered-cell state.</li>
+      <li>In <code>Draw</code>, after drawing the grid, draw one translucent filled rectangle over the hovered cell. Then optionally redraw that cell's border in a stronger color so the highlight reads clearly.</li>
+      <li>Move the mouse around the window. You win when exactly one cell highlights under the cursor, and no cell stays highlighted when the cursor leaves the grid.</li>
+    </ol>
+
+    <h2>Implementation shape</h2>
+    <pre>protected override void Update(GameTime gameTime)
+{
+    var mouse = Mouse.GetState();
+    var localX = mouse.X - gridOriginX;
+    var localY = mouse.Y - gridOriginY;
+
+    // bounds check, then compute:
+    // column = localX / CellSize
+    // row = localY / CellSize
+
+    base.Update(gameTime);
+}
+
+protected override void Draw(GameTime gameTime)
+{
+    GraphicsDevice.Clear(Color.CornflowerBlue);
+
+    _spriteBatch.Begin();
+    DrawGrid();
+    DrawHoveredCellHighlight();
+    _spriteBatch.End();
+
+    base.Draw(gameTime);
+}</pre>
+    <p>The key design choice is that <em>the same grid origin and cell size</em> drive both the grid drawing and the mouse mapping. If those values diverge, input will feel haunted.</p>
+
+    <h2>Fast feedback</h2>
+    <pre>dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>Success looks like one highlight tracking the mouse cell-by-cell. If the highlight is offset, debug in this order: wrong grid origin, wrong cell size, forgotten bounds check, then row/column mixed up.</p>
+
+    <h2>Retrieval check</h2>
+    <p>Answer both prompts <strong>before</strong> opening the answer:</p>
+    <ol class="steps">
+      <li>What two numbers must be subtracted from the mouse position before dividing by <code>CellSize</code>?</li>
+      <li>Should hovered-cell state be updated in <code>Update</code> or <code>Draw</code>?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <p>You subtract the grid origin: the grid's top-left <code>x</code> and <code>y</code> screen coordinates. Hovered-cell state should be updated in <code>Update</code>; <code>Draw</code> should only render the current highlight.</p>
+    </details>
+
+    <h2>Next</h2>
+    <p>If you need the rendering scaffold again, revisit <a href="0003-draw-a-screen-space-grid.html">Lesson 3 — Draw a screen-space grid</a>. Once hover works cleanly, the next lesson will turn pointing into intent by adding click selection for a cell.</p>
+
+    <footer>
+      Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.Mouse.html">MonoGame <code>Mouse</code> API</a> and <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a>. Ask me follow-up questions if you want help testing your bounds logic or choosing a good hovered-cell representation.
+    </footer>
+  </main>
+</body>
+</html>

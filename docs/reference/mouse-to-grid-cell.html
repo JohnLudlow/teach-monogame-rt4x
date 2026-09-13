@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mouse to grid cell</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · MonoGame input</p>
+    <h1>Mouse to grid cell</h1>
+    <p>Use this when the player points at a screen-space grid and you need to know which cell is under the cursor.</p>
+
+    <pre>mouseX = Mouse.GetState().X
+mouseY = Mouse.GetState().Y
+
+localX = mouseX - gridOriginX
+localY = mouseY - gridOriginY
+
+if localX &lt; 0 or localY &lt; 0:
+  outside grid
+else:
+  column = localX / cellSize
+  row = localY / cellSize
+  inside only if column &lt; columns and row &lt; rows</pre>
+
+    <dl>
+      <dt><strong>Screen-space picking</strong></dt>
+      <dd>Because the grid is currently drawn directly in window pixels, the mouse position can be converted to a grid cell with subtraction and integer division alone.</dd>
+
+      <dt><strong>Grid origin</strong></dt>
+      <dd>The top-left pixel where the grid begins. A margin or centering offset must be subtracted before dividing by <code>cellSize</code>.</dd>
+
+      <dt><strong>Bounds check</strong></dt>
+      <dd>A cell is valid only when its column and row both land inside the configured grid dimensions.</dd>
+
+      <dt><strong>Update vs Draw</strong></dt>
+      <dd>Mouse sampling and hovered-cell state belong in <code>Update</code>; the highlight rectangle belongs in <code>Draw</code>.</dd>
+    </dl>
+
+    <p class="callout"><strong>RT4X rule:</strong> first make pointing at a tile reliable. Selection, movement, and terrain rules can build on the same cell-mapping logic later.</p>
+
+    <p>Sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.Mouse.html">MonoGame <code>Mouse</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a>.</p>
+  </main>
+</body>
+</html>

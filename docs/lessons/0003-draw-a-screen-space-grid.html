@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 3 — Draw a screen-space grid</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 0003 · 20 minutes</p>
+    <h1>Draw the first top-down strategy grid</h1>
+    <p>Your mission is a maintainable fantasy RT4X prototype, not a blue window forever. Before terrain generation or units, give the game a visible map structure: a simple top-down grid drawn entirely from code.</p>
+
+    <h2>What you need to know</h2>
+    <p>MonoGame's <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html"><code>SpriteBatch</code></a> can draw a texture into any destination rectangle, which means one 1x1 white pixel can become every grid line once it is scaled and tinted. A <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.Texture2D.html"><code>Texture2D</code></a> can also be created in code and populated with <code>SetData</code>, so this lesson needs no imported art. Read the <a href="../reference/screen-space-grid-recipe.html">screen-space grid recipe</a> first; it keeps rendering separate from simulation, just like the <a href="../reference/monogame-frame-loop.html">frame-loop reference</a>.</p>
+
+    <h2>Your exercise</h2>
+    <ol class="steps">
+      <li>Open <code>monogame-rt4x/FourxGame.MonoGame/Game1.cs</code>. Add fields for a reusable 1x1 pixel texture and for fixed grid dimensions such as 12 columns, 8 rows, and a 48-pixel cell size. Keep them simple constants or readonly fields.</li>
+      <li>In <code>LoadContent</code>, keep the existing <code>SpriteBatch</code> creation. Then create a 1x1 <code>Texture2D</code> with the current <code>GraphicsDevice</code> and upload a single white pixel using <code>SetData</code>.</li>
+      <li>Still in <code>Game1.cs</code>, add a small helper that draws one rectangle with the pixel texture. Then add another helper that draws the whole grid by looping over columns and rows and drawing thin vertical and horizontal rectangles.</li>
+      <li>In <code>Draw</code>, keep <code>GraphicsDevice.Clear</code>, call <code>_spriteBatch.Begin()</code>, draw the grid, then call <code>_spriteBatch.End()</code>. Leave <code>Update</code> almost untouched: the grid is presentation, not simulation.</li>
+      <li>Center the grid or place it with a deliberate margin. You win when the window shows a stable rectangular playfield instead of only a solid background.</li>
+    </ol>
+
+    <h2>Implementation shape</h2>
+    <pre>private Texture2D _pixel;
+private const int GridColumns = 12;
+private const int GridRows = 8;
+private const int CellSize = 48;
+
+protected override void LoadContent()
+{
+    _spriteBatch = new SpriteBatch(GraphicsDevice);
+
+    _pixel = new Texture2D(GraphicsDevice, 1, 1);
+    _pixel.SetData(new[] { Color.White });
+}
+
+protected override void Draw(GameTime gameTime)
+{
+    GraphicsDevice.Clear(Color.CornflowerBlue);
+
+    _spriteBatch.Begin();
+    // draw vertical and horizontal line rectangles here
+    _spriteBatch.End();
+
+    base.Draw(gameTime);
+}</pre>
+    <p>This is not copy-paste homework; it is the minimum skeleton. You still need to decide the grid origin and write the line loops yourself.</p>
+
+    <h2>Fast feedback</h2>
+    <pre>dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>Success looks like a blue window with a clearly visible rectangular grid. If the window appears but the grid does not, check four things in order: the pixel texture was created, <code>SetData</code> ran, <code>Begin/End</code> surround the draw calls, and your destination rectangles are on-screen.</p>
+
+    <h2>Retrieval check</h2>
+    <p>Answer both prompts <strong>before</strong> opening the answer:</p>
+    <ol class="steps">
+      <li>Why can a single 1x1 white texture draw every grid line?</li>
+      <li>If a future unit moves from one cell to another, which method should change that state: <code>Update</code> or <code>Draw</code>?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <p>A 1x1 white texture works because <code>SpriteBatch.Draw</code> can scale it into any destination rectangle and tint it at draw time, so one pixel can become any horizontal or vertical line. A unit's cell change belongs in <code>Update</code>; <code>Draw</code> should only render the current state.</p>
+    </details>
+
+    <h2>Next</h2>
+    <p>If you need the build setup again, revisit <a href="0002-convert-to-a-content-builder-project.html">Lesson 2 — Convert to a Content Builder project</a>. Once this grid renders cleanly, continue to <a href="0004-highlight-the-hovered-cell.html">Lesson 4 — Highlight the hovered cell</a>, the first step from rendering toward interaction.</p>
+
+    <footer>
+      Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html">MonoGame <code>SpriteBatch</code> API</a> and <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.Texture2D.html">MonoGame <code>Texture2D</code> API</a>. Ask me follow-up questions if you want help designing the grid helper or checking your rectangle math.
+    </footer>
+  </main>
+</body>
+</html>
