@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Integrate Coordinate Utilities and Camera</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 6 · Architecture</p>
+    <h1>Integrate Coordinate Utilities and Camera</h1>
+    <p>Now that you understand coordinate systems, it's time to clean up the current architecture by creating proper utility classes and integrating them with your Grid class. This lesson will move you from inline coordinate math to a clean, reusable system.</p>
+
+    <h2>The Current Problem</h2>
+
+    <p>Your current <code>Game1.cs</code> has coordinate conversion logic scattered inline:</p>
+
+    <pre>var hoveredCell = new Point(
+  (mouseState.X - _gridOrigin.X) / _gridCellSize,
+  (mouseState.Y - _gridOrigin.Y) / _gridCellSize
+);</pre>
+
+    <p>This approach has several issues:</p>
+    <ul>
+      <li><strong>No bounds checking</strong> — clicking outside the grid could cause exceptions later</li>
+      <li><strong>Scattered coordinate math</strong> — conversion logic will be duplicated across your codebase</li>
+      <li><strong>No camera system</strong> — you can't pan or zoom your view</li>
+      <li><strong>Tight coupling</strong> — Game1 knows too much about grid coordinate math</li>
+    </ul>
+
+    <h2>The Solution: Three Classes</h2>
+
+    <p>You'll create three focused classes that work together:</p>
+
+    <dl>
+      <dt><strong>Transforms</strong> (static utility class)</dt>
+      <dd>Coordinate conversion methods that don't depend on any specific grid or camera instance</dd>
+
+      <dt><strong>Camera</strong> (instance class)</dt>
+      <dd>Manages screen-to-world transformations, zoom, and pan state</dd>
+
+      <dt><strong>Enhanced Grid</strong> (instance class)</dt>
+      <dd>Your existing Grid class, but with convenience methods for coordinate conversion and bounds checking</dd>
+    </dl>
+
+    <h2>Implementation Steps</h2>
+
+    <h3>Step 1: Create the Transforms Utility Class</h3>
+
+    <p>Create <code>FourxGame.MonoGame.Core/Transforms.cs</code>:</p>
+
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core;
+
+public static class Transforms
+{
+    /// &lt;summary&gt;
+    /// Convert screen coordinates to world coordinates using camera transform
+    /// &lt;/summary&gt;
+    public static Vector2 ScreenToWorld(Vector2 screenPos, Matrix cameraTransform)
+    {
+        Matrix.Invert(cameraTransform, out Matrix inverseTransform);
+        return Vector2.Transform(screenPos, inverseTransform);
+    }
+
+    /// &lt;summary&gt;
+    /// Convert world coordinates to screen coordinates using camera transform
+    /// &lt;/summary&gt;
+    public static Vector2 WorldToScreen(Vector2 worldPos, Matrix cameraTransform)
+    {
+        return Vector2.Transform(worldPos, cameraTransform);
+    }
+
+    /// &lt;summary&gt;
+    /// Convert world coordinates to grid coordinates
+    /// &lt;/summary&gt;
+    public static Point WorldToGrid(Vector2 worldPos, Vector2 gridOrigin, int gridCellSize)
+    {
+        var localX = worldPos.X - gridOrigin.X;
+        var localY = worldPos.Y - gridOrigin.Y;
+        return new Point(
+            (int)Math.Floor(localX / gridCellSize),
+            (int)Math.Floor(localY / gridCellSize)
+        );
+    }
+
+    /// &lt;summary&gt;
+    /// Convert grid coordinates to world coordinates (cell center)
+    /// &lt;/summary&gt;
+    public static Vector2 GridToWorld(Point gridPos, Vector2 gridOrigin, int gridCellSize)
+    {
+        return new Vector2(
+            gridOrigin.X + gridPos.X * gridCellSize + gridCellSize / 2f,
+            gridOrigin.Y + gridPos.Y * gridCellSize + gridCellSize / 2f
+        );
+    }
+}</pre>
+
+    <p><strong>Note the Math.Floor:</strong> This ensures negative coordinates map correctly to grid cells. Without it, <code>(-1, -1)</code> might map to grid cell <code>(0, 0)</code> instead of <code>(-1, -1)</code>.</p>
+
+    <h3>Step 2: Create the Camera Class</h3>
+
+    <p>Create <code>FourxGame.MonoGame.Core/Camera.cs</code>:</p>
+
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core;
+
+public class Camera
+{
+    public Vector2 Position { get; set; } = Vector2.Zero;
+    public float Zoom { get; set; } = 1.0f;
+    
+    private Matrix _transform;
+    private bool _transformNeedsUpdate = true;
+
+    public Matrix Transform
+    {
+        get
+        {
+            if (_transformNeedsUpdate)
+            {
+                _transform = Matrix.CreateScale(Zoom) * Matrix.CreateTranslation(Position.X, Position.Y, 0);
+                _transformNeedsUpdate = false;
+            }
+            return _transform;
+        }
+    }
+
+    public void SetPosition(Vector2 position)
+    {
+        Position = position;
+        _transformNeedsUpdate = true;
+    }
+
+    public void SetZoom(float zoom)
+    {
+        Zoom = Math.Max(0.1f, Math.Min(5.0f, zoom)); // Clamp zoom between 0.1x and 5.0x
+        _transformNeedsUpdate = true;
+    }
+
+    public void Pan(Vector2 delta)
+    {
+        Position += delta;
+        _transformNeedsUpdate = true;
+    }
+}</pre>
+
+    <p><strong>Design note:</strong> The lazy evaluation pattern for <code>Transform</code> avoids recomputing the matrix every frame unless position or zoom actually changed.</p>
+
+    <h3>Step 3: Enhance the Grid Class</h3>
+
+    <p>Update <code>FourxGame.MonoGame.Core/Entities/Grid.cs</code>:</p>
+
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Entities;
+
+public class Grid
+{
+    public Vector2 Origin { get; set; } = Vector2.Zero;
+    public required int GridCellSize { get; set; }
+    public required int GridSizeX { get; set; }
+    public required int GridSizeY { get; set; }
+
+    /// &lt;summary&gt;
+    /// Convert world position to grid coordinates
+    /// &lt;/summary&gt;
+    public Point WorldToGrid(Vector2 worldPos)
+    {
+        return Transforms.WorldToGrid(worldPos, Origin, GridCellSize);
+    }
+
+    /// &lt;summary&gt;
+    /// Convert grid coordinates to world position (cell center)
+    /// &lt;/summary&gt;
+    public Vector2 GridToWorld(Point gridPos)
+    {
+        return Transforms.GridToWorld(gridPos, Origin, GridCellSize);
+    }
+
+    /// &lt;summary&gt;
+    /// Check if grid coordinates are within bounds
+    /// &lt;/summary&gt;
+    public bool IsValidGridPosition(Point gridPos)
+    {
+        return gridPos.X >= 0 && gridPos.X < GridSizeX &&
+               gridPos.Y >= 0 && gridPos.Y < GridSizeY;
+    }
+
+    /// &lt;summary&gt;
+    /// Convert screen position to grid coordinates via world space
+    /// &lt;/summary&gt;
+    public Point? ScreenToGrid(Vector2 screenPos, Matrix cameraTransform)
+    {
+        var worldPos = Transforms.ScreenToWorld(screenPos, cameraTransform);
+        var gridPos = WorldToGrid(worldPos);
+        
+        return IsValidGridPosition(gridPos) ? gridPos : null;
+    }
+}</pre>
+
+    <p><strong>Design note:</strong> <code>ScreenToGrid</code> returns <code>null</code> for out-of-bounds clicks, making it safe to use without additional bounds checking.</p>
+
+    <h3>Step 4: Update Game1 to Use the New Architecture</h3>
+
+    <p>Update your <code>Game1.cs</code> to use the new classes:</p>
+
+    <pre>// Add these using statements
+using FourxGame.MonoGame.Core;
+using FourxGame.MonoGame.Core.Entities;
+
+public class Game1 : Game
+{
+    // Replace individual grid variables with:
+    private Grid _grid;
+    private Camera _camera;
+    private Point? _hoveredCell;
+
+    // In Initialize():
+    protected override void Initialize()
+    {
+        _grid = new Grid
+        {
+            GridCellSize = 48,
+            GridSizeX = 32,
+            GridSizeY = 16,
+            Origin = Vector2.Zero
+        };
+
+        _camera = new Camera();
+
+        base.Initialize();
+    }
+
+    // In Update():
+    protected override void Update(GameTime gameTime)
+    {
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || 
+            Keyboard.GetState().IsKeyDown(Keys.Escape))
+            Exit();
+
+        var mouseState = Mouse.GetState();
+        var mousePos = new Vector2(mouseState.X, mouseState.Y);
+        
+        _hoveredCell = _grid.ScreenToGrid(mousePos, _camera.Transform);
+
+        base.Update(gameTime);
+    }
+
+    // In Draw(), add camera transform:
+    protected override void Draw(GameTime gameTime)
+    {
+        GraphicsDevice.Clear(Color.CornflowerBlue);
+
+        _spriteBatch.Begin(transformMatrix: _camera.Transform);
+        
+        // Your existing grid drawing code here...
+        
+        _spriteBatch.End();
+
+        base.Draw(gameTime);
+    }
+}</pre>
+
+    <h2>Test Your Implementation</h2>
+
+    <p>Build and run your game. You should see:</p>
+    <ol class="steps">
+      <li>The same grid as before</li>
+      <li>No runtime errors when clicking outside the grid bounds</li>
+      <li>Clean coordinate conversion logic separated from game logic</li>
+    </ol>
+
+    <div class="callout">
+      <h3>Troubleshooting</h3>
+      <p>If you get build errors about missing <code>using</code> statements or namespace issues, double-check that your <code>using FourxGame.MonoGame.Core;</code> statements are present and match your project structure.</p>
+    </div>
+
+    <h2>What You've Accomplished</h2>
+
+    <ul>
+      <li><strong>Separated concerns:</strong> Coordinate math is now isolated in focused classes</li>
+      <li><strong>Added bounds checking:</strong> Invalid grid positions are handled gracefully</li>
+      <li><strong>Built camera foundation:</strong> Ready for zoom and pan features</li>
+      <li><strong>Improved maintainability:</strong> Coordinate logic can be unit tested independently</li>
+    </ul>
+
+    <h2>Next Steps</h2>
+
+    <p>In the next lesson, you'll add camera controls (WASD for panning, mouse wheel for zoom) and see how the coordinate system handles transformations automatically.</p>
+
+    <footer>
+      <p>Primary sources: <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a></p>
+      <p>Ask me follow-up questions if you want clarification on the design decisions or help with any build errors.</p>
+    </footer>
+  </main>
+</body>
+</html>

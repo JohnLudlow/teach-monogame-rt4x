@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coordinate Systems and Transforms</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · Game mathematics</p>
+    <h1>Coordinate Systems and Transforms</h1>
+    <p>Every game uses multiple coordinate systems. Understanding the relationships between them is essential for input handling, rendering, camera systems, and spatial logic.</p>
+
+    <h2>The Five Coordinate Systems</h2>
+
+    <figure>
+      <table>
+        <thead>
+          <tr>
+            <th>System</th>
+            <th>Units</th>
+            <th>Origin</th>
+            <th>Y-axis</th>
+            <th>Use case</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Input / Mouse</strong></td>
+            <td>pixels</td>
+            <td>top-left of window</td>
+            <td>downward ↓</td>
+            <td>mouse position, touch coordinates</td>
+          </tr>
+          <tr>
+            <td><strong>Screen / Viewport</strong></td>
+            <td>pixels</td>
+            <td>top-left of render target</td>
+            <td>downward ↓</td>
+            <td>UI positioning, sprite drawing</td>
+          </tr>
+          <tr>
+            <td><strong>World</strong></td>
+            <td>game units</td>
+            <td>arbitrary world space origin</td>
+            <td>your choice</td>
+            <td>unit positions, map geometry</td>
+          </tr>
+          <tr>
+            <td><strong>Grid</strong></td>
+            <td>cells / tiles</td>
+            <td>grid origin (cell 0,0)</td>
+            <td>downward ↓ or upward ↑</td>
+            <td>tile selection, pathfinding, spatial queries</td>
+          </tr>
+          <tr>
+            <td><strong>Local / Entity</strong></td>
+            <td>relative to parent</td>
+            <td>entity's own center or origin</td>
+            <td>depends on parent</td>
+            <td>sprite animation, child object positioning</td>
+          </tr>
+        </tbody>
+      </table>
+      <figcaption>Coordinate systems in a typical 2D game. Note that input and screen often differ slightly due to window borders and viewport offsets.</figcaption>
+    </figure>
+
+    <h3>Input vs Screen Coordinates</h3>
+
+    <p><strong>Input coordinates</strong> come from the operating system and are relative to the window's client area. <strong>Screen coordinates</strong> are relative to the rendering viewport.</p>
+
+    <p>In most cases, these are identical. They differ when:</p>
+    <ul>
+      <li>The game renders to a smaller viewport than the window (letterboxing/pillarboxing)</li>
+      <li>Multiple viewports are used (split-screen games)</li>
+      <li>UI overlays consume part of the window</li>
+      <li>Platform-specific window decorations affect coordinate systems</li>
+    </ul>
+
+    <pre>// Convert input to screen coordinates when they differ
+var inputPos = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
+var screenPos = inputPos - viewportOffset;  // Adjust for viewport if needed</pre>
+
+    <h3>Y-Axis Orientation</h3>
+
+    <p>In computer graphics, the Y-axis typically points downward from the top-left origin. This is why:</p>
+    <ul>
+      <li><code>Mouse.Y = 0</code> is at the top of the window</li>
+      <li>Increasing Y values move down the screen</li>
+      <li>Grid row 0 is typically at the top</li>
+    </ul>
+
+    <p>For grid-based games with integer positions, ensure your units respect grid alignment:</p>
+
+    <pre>// For units constrained to grid cells
+var unitGridPosition = new Point((int)worldPosition.X / cellSize, (int)worldPosition.Y / cellSize);
+
+// Position unit at center of grid cell
+var unitWorldPosition = new Vector2(
+    gridPosition.X * cellSize + cellSize / 2f,
+    gridPosition.Y * cellSize + cellSize / 2f
+);</pre>
+
+    <h2>Transform Matrices</h2>
+
+    <p>MonoGame's <code>SpriteBatch</code> accepts an optional <code>transformMatrix</code> parameter that applies a linear transformation to all drawing operations within the <code>Begin/End</code> block.</p>
+
+    <pre>spriteBatch.Begin(transformMatrix: transformMatrix);</pre>
+
+    <p>Transform matrices can combine translation, rotation, and scaling in a single operation. For 2D games, we typically use 3×3 matrices (with implicit homogeneous coordinates).</p>
+
+    <h3>Translation Matrix</h3>
+
+    <pre>| 1  0  tx |   | x |   | x + tx |
+| 0  1  ty | × | y | = | y + ty |
+| 0  0  1  |   | 1 |   |    1   |</pre>
+
+    <p>Move coordinates by <code>tx</code> horizontally and <code>ty</code> vertically.</p>
+
+    <h3>Scaling Matrix</h3>
+
+    <pre>| sx 0  0 |   | x |   | x × sx |
+| 0  sy 0 | × | y | = | y × sy |
+| 0  0  1 |   | 1 |   |    1   |</pre>
+
+    <p>Scale coordinates by <code>sx</code> horizontally and <code>sy</code> vertically. Used for zooming camera.</p>
+
+    <h3>Combining Transforms</h3>
+
+    <p>Multiple transforms can be combined by matrix multiplication. Order matters because matrix multiplication is not commutative.</p>
+
+    <p><strong>For camera transforms, use: Scale first, then Translate</strong></p>
+
+    <pre>// Pan camera by (100, 50) and zoom to 2x
+var scaling = Matrix.CreateScale(2f);
+var translation = Matrix.CreateTranslation(-100, -50, 0);
+var transform = scaling * translation;  // Scale first!
+spriteBatch.Begin(transformMatrix: transform);</pre>
+
+    <p><strong>Why this order?</strong> The camera transform represents how world coordinates map to screen coordinates. When you zoom (scale), you want to zoom <em>around the camera's target point</em>, not around the screen origin. By scaling first, the translation adjustment remains at world scale, so a 100-unit camera pan stays 100 units regardless of zoom level.</p>
+
+    <pre>// Wrong: translate first, then scale
+var badTransform = translation * scaling;
+// Result: Translation is scaled too! A 100-unit pan becomes 200-unit pan at 2x zoom
+
+// Correct: scale first, then translate  
+var goodTransform = scaling * translation;
+// Result: Translation happens at world scale, zoom is applied to final coordinates</pre>
+
+    <p><strong>Matrix multiplication note:</strong> In MonoGame, transformations are applied right-to-left: <code>A * B</code> means "apply B first, then A". So <code>scaling * translation</code> applies translation first to world coordinates, then scaling to screen coordinates.</p>
+
+    <h2>Conversion Functions</h2>
+
+    <h3>Screen ↔ World</h3>
+
+    <pre>// World to Screen: apply camera transform
+Vector2 WorldToScreen(Vector2 worldPosition, Camera camera)
+{
+    return Vector2.Transform(worldPosition, camera.Transform);
+}
+
+// Screen to World: invert camera transform
+Vector2 ScreenToWorld(Vector2 screenPosition, Camera camera)
+{
+    Matrix inverse;
+    Matrix.Invert(ref camera.Transform, out inverse);
+    return Vector2.Transform(screenPosition, inverse);
+}</pre>
+
+    <h3>World ↔ Grid</h3>
+
+    <pre>// World to Grid: divide by cell size and truncate
+Vector2 WorldToGrid(Vector2 worldPosition, Grid grid)
+{
+    var localX = worldPosition.X - grid.Origin.X;
+    var localY = worldPosition.Y - grid.Origin.Y;
+    return new Vector2(
+        (int)(localX / grid.GridCellSize),
+        (int)(localY / grid.GridCellSize)
+    );
+}
+
+// Grid to World: multiply by cell size and add origin
+Vector2 GridToWorld(Vector2 gridPosition, Grid grid)
+{
+    return new Vector2(
+        grid.Origin.X + gridPosition.X * grid.GridCellSize,
+        grid.Origin.Y + gridPosition.Y * grid.GridCellSize
+    );
+}</pre>
+
+    <h3>Screen ↔ Grid (Combined)</h3>
+
+    <pre>// Screen to Grid: combine screen-to-world and world-to-grid
+Vector2 ScreenToGrid(Vector2 screenPosition, Camera camera, Grid grid)
+{
+    var world = ScreenToWorld(screenPosition, camera);
+    return WorldToGrid(world, grid);
+}
+
+// Grid to Screen: combine grid-to-world and world-to-screen
+Vector2 GridToScreen(Vector2 gridPosition, Camera camera, Grid grid)
+{
+    var world = GridToWorld(gridPosition, grid);
+    return WorldToScreen(world, camera);
+}</pre>
+
+    <h2>Common Patterns</h2>
+
+    <h3>Picking / Hit Testing</h3>
+
+    <ol class="steps">
+      <li>Read mouse position (screen coordinates)</li>
+      <li>Convert to world coordinates using inverse camera transform</li>
+      <li>Convert to grid coordinates for tile selection</li>
+      <li>Bounds check against valid grid area</li>
+    </ol>
+
+    <pre>var mouseScreen = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
+var world = ScreenToWorld(mouseScreen, camera);
+var gridPos = WorldToGrid(world, grid);
+
+if (gridPos.X >= 0 && gridPos.X &lt; grid.Width && gridPos.Y >= 0 && gridPos.Y &lt; grid.Height)
+{
+    // Valid tile selected
+}</pre>
+
+    <h3>Render Culling</h3>
+
+    <p>Convert visible screen area to world coordinates to determine which tiles need rendering:</p>
+
+    <pre>// Get screen bounds in world coordinates
+var screenTopLeft = ScreenToWorld(Vector2.Zero, camera);
+var screenBottomRight = ScreenToWorld(new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), camera);
+
+// Convert to grid coordinates for culling
+var gridTopLeft = WorldToGrid(screenTopLeft, grid);
+var gridBottomRight = WorldToGrid(screenBottomRight, grid);
+
+// Only render tiles within this range</pre>
+
+    <h3>Camera Follow</h3>
+
+    <p>Keep a target entity centered on screen:</p>
+
+    <pre>// Center camera on entity (in world space)
+var targetWorld = entity.Position;
+var screenCenter = new Vector2(viewportWidth / 2f, viewportHeight / 2f);
+
+// Camera translation should move target to screen center
+var cameraTranslation = screenCenter - targetWorld;
+
+// Update camera transform
+camera.Transform = Matrix.CreateTranslation(cameraTranslation.X, cameraTranslation.Y, 0);</pre>
+
+    <h2>RT4X Rules</h2>
+
+    <dl>
+      <dt><strong>Separate concerns</strong></dt>
+      <dd>Keep your coordinate conversion logic in a dedicated utility class or methods on your <code>Grid</code> and <code>Camera</code> classes. Don't scatter conversion math throughout your codebase.</dd>
+
+      <dt><strong>Choose a world unit</strong></dt>
+      <dd>Decide what one world unit represents (1 meter? 1 foot? 1 tile width?) and be consistent. Many 2D games use tile size as the world unit, so <code>GridToWorld</code> becomes trivial multiplication.</dd>
+
+      <dt><strong>Bounds checking</strong></dt>
+      <dd>Always validate grid coordinates after conversion. Screen corners can map to negative or out-of-bounds grid positions. Typical validation: <code>gridPos.X >= 0 && gridPos.X &lt; grid.Width && gridPos.Y >= 0 && gridPos.Y &lt; grid.Height</code>. This prevents array index exceptions and ensures your spatial queries stay within valid game area.</dd>
+
+      <dt><strong>Order matters</strong></dt>
+      <dd>Matrix multiplication is not commutative. <code>Scale * Translate</code> gives different results than <code>Translate * Scale</code>.</dd>
+    </dl>
+
+    <h2>Implementation Checklist</h2>
+
+    <ol class="steps">
+      <li>Create a static <code>CoordinateUtils</code> or <code>Transforms</code> class</li>
+      <li>Implement Screen↔World methods (requires Camera or transform matrix)</li>
+      <li>Implement World↔Grid methods (requires Grid configuration)</li>
+      <li>Implement Screen↔Grid as combinations</li>
+      <li>Add unit tests for each conversion direction</li>
+      <li>Integrate with existing Grid class</li>
+    </ol>
+
+    <footer>
+      <p>Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html">MonoGame <code>SpriteBatch</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Matrix.html">MonoGame <code>Matrix</code> API</a>.</p>
+      <p>Ask me follow-up questions if you want help designing the utility class structure or deciding on world units for your RT4X game.</p>
+    </footer>
+  </main>
+</body>
+</html>

@@ -9,3 +9,5 @@
 - Lesson 1 complete: the template project runs; learner correctly identified Update as game-state change and Draw as state presentation.
 - Correction: `dotnet build` validates compilation; `dotnet run --project <project-path>` launches the game.
 - Lesson UX: show every retrieval prompt before its answer; keep feedback prompts and retrieval prompts together.
+- Lesson 5 focus: coordinate translation utilities and transform matrices.
+- Learner requested: utility methods for coordinate translation (world/screen/grid, absolute/offset).

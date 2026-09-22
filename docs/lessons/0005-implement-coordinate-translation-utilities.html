@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 5 — Coordinate translation utilities</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 0005 · 30 minutes</p>
+    <h1>Implement coordinate translation utilities</h1>
+    <p>Your grid prototype works with screen-space coordinates. As your game grows, you'll need multiple coordinate systems: input, screen, world, grid, and local entity spaces. This lesson guides you through building a reusable coordinate transformation system.</p>
+
+    <h2>What you need to know</h2>
+    <p>Read the <a href="../reference/coordinate-systems-and-transforms.html">coordinate systems and transforms reference</a> first. This lesson focuses on implementation, not theory. The <a href="../reference/coordinate-systems-quiz.html">coordinate quiz</a> can help you check your understanding before starting.</p>
+
+    <p>Key concepts from the reference:</p>
+    <ul class="steps">
+      <li>Five coordinate systems: Input, Screen, World, Grid, Local</li>
+      <li>Camera transform moves World → Screen (invert for Screen → World)</li>
+      <li>Grid conversion: divide by cell size (world → grid) or multiply (grid → world)</li>
+      <li>Order matters for matrix multiplication (scale before translate)</li>
+    </ul>
+
+    <h2>Your exercise</h2>
+    <p>Create coordinate translation utilities in <code>FourxGame.MonoGame.Core</code>. These will be the foundation for camera systems, input handling, and spatial logic throughout your game.</p>
+
+    <ol class="steps">
+      <li><strong>Create the utility class</strong><br>
+      Create a new class <code>Transforms.cs</code> in <code>FourxGame.MonoGame.Core/</code>. Add methods for all conversion directions.</li>
+
+      <li><strong>Implement Grid coordinate helpers</strong><br>
+      Since you already have a <code>Grid</code> class, add extension methods or instance methods for:
+      <ul>
+        <li><code>GridToWorld(Vector2)</code> — convert grid coordinates to world position</li>
+        <li><code>WorldToGrid(Vector2)</code> — convert world position to grid coordinates</li>
+        <li><code>ScreenToGrid(Vector2)</code> — convert screen position to grid coordinates</li>
+        <li><code>GridToScreen(Vector2)</code> — convert grid coordinates to screen position</li>
+      </ul>
+      Note: <code>ScreenToGrid</code> and <code>GridToScreen</code> will need a camera transform parameter.</li>
+
+      <li><strong>Implement Camera class</strong><br>
+      Create a <code>Camera</code> class in <code>FourxGame.MonoGame.Core/</code> with:
+      <ul>
+        <li><code>Transform</code> matrix (World → Screen)</li>
+        <li><code>Position</code> (world coordinates of camera center)</li>
+        <li><code>Zoom</code> (scale factor, 1.0 = 1:1)</li>
+        <li><code>ViewportWidth</code> and <code>ViewportHeight</code></li>
+        <li><code>UpdateTransform()</code> method to rebuild the matrix</li>
+      </ul></li>
+
+      <li><strong>Implement Camera coordinate helpers</strong><br>
+      Add methods to <code>Camera</code>:
+      <ul>
+        <li><code>WorldToScreen(Vector2)</code> — apply transform</li>
+        <li><code>ScreenToWorld(Vector2)</code> — invert transform</li>
+      </ul></li>
+
+      <li><strong>Update the Grid class</strong><br>
+      Add the origin as a <code>Vector2</code> (already has <code>Origin</code>), and add grid dimensions:
+      <ul>
+        <li><code>Origin</code> (Vector2, not Point — sub-pixel precision helps)</li>
+        <li><code>Width</code> (number of columns)</li>
+        <li><code>Height</code> (number of rows)</li>
+        <li><code>CellSize</code> (int)</li>
+      </ul></li>
+
+      <li><strong>Test the conversions</strong><br>
+      In <code>Game1.cs</code>, add debug output or visual markers to verify conversions work correctly:
+      <ul>
+        <li>Hovering cell 0,0 should show world position equal to origin</li>
+        <li>Hovering cell 1,0 should be one cell size right of origin</li>
+        <li>Converting world position back to grid should return original cell</li>
+      </ul></li>
+    </ol>
+
+    <h2>Implementation structure</h2>
+
+    <pre>namespace FourxGame.MonoGame.Core;
+
+public class Camera
+{
+    public Matrix Transform { get; private set; }
+    public Vector2 Position { get; set; }
+    public float Zoom { get; set; } = 1.0f;
+    public int ViewportWidth { get; set; }
+    public int ViewportHeight { get; set; }
+
+    public void UpdateTransform() { /* build transform matrix */ }
+    public Vector2 WorldToScreen(Vector2 worldPosition) { /* apply transform */ }
+    public Vector2 ScreenToWorld(Vector2 screenPosition) { /* invert transform */ }
+}
+
+public static class Transforms
+{
+    // Grid extensions or static methods
+    public static Vector2 GridToWorld(Vector2 gridPosition, Grid grid) { /* multiply by cell size, add origin */ }
+    public static Vector2 WorldToGrid(Vector2 worldPosition, Grid grid) { /* subtract origin, divide by cell size */ }
+    public static Vector2 ScreenToGrid(Vector2 screenPosition, Camera camera, Grid grid) { /* screen→world→grid */ }
+    public static Vector2 GridToScreen(Vector2 gridPosition, Camera camera, Grid grid) { /* grid→world→screen */ }
+}</pre>
+
+    <h2>Fast feedback</h2>
+    <pre>dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>Success looks like:</p>
+    <ul class="steps">
+      <li>Build succeeds without errors or warnings</li>
+      <li>Game runs without crashes</li>
+      <li>Grid still renders in the same position</li>
+      <li>Coordinate conversions return expected values (test with console output or visual markers)</li>
+    </ul>
+
+    <h2>Common pitfalls</h2>
+    <dl>
+      <dt><strong>Division vs modulo</strong></dt>
+      <dd>Grid coordinates use <em>integer division</em> (truncate), not modulo. Use <code>(int)(x / cellSize)</code>, not <code>x % cellSize</code>.</dd>
+
+      <dt><strong>Float precision</strong></dt>
+      <dd>World positions should use <code>Vector2</code> (float), not <code>Point</code> (int). Grid coordinates can be <code>Vector2</code> or <code>Point</code> depending on whether you support sub-tile precision.</dd>
+
+      <dt><strong>Matrix order</strong></dt>
+      <dd>For camera: <code>Matrix.CreateScale(Zoom) * Matrix.CreateTranslation(-Position.X, -Position.Y, 0)</code> (scale first, then translate).</dd>
+
+      <dt><strong>Bounds checking</strong></dt>
+      <dd>After <code>ScreenToGrid</code>, validate that the result is within <code>[0, Width)</code> and <code>[0, Height)</code> before using as an array index.</dd>
+    </dl>
+
+    <h2>Retrieval check</h2>
+    <p>Answer these before checking the answers:</p>
+    <ol class="steps">
+      <li>What method should invert the camera transform: <code>Matrix.Invert</code> or <code>Matrix.Transpose</code>?</li>
+      <li>When converting grid 0,0 to world, what should the result equal?</li>
+      <li>Why must <code>UpdateTransform</code> be called after changing camera properties?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li><code>Matrix.Invert</code> — transposes only for orthonormal matrices (rotation without scaling).</li>
+        <li><code>GridToWorld(0,0)</code> should equal the grid's origin position in world coordinates.</li>
+        <li>Because the transform matrix is cached; changing properties doesn't automatically rebuild it.</li>
+      </ol>
+    </details>
+
+    <h2>Next steps</h2>
+    <p>Once the coordinate utilities are working, you'll have the foundation for:</p>
+    <ul class="steps">
+      <li><a href="0004-highlight-the-hovered-cell.html">Lesson 4 — Highlight the hovered cell</a> (update with world/grid coordinates)</li>
+      <li>Camera panning and zooming</li>
+      <li>World-based unit movement</li>
+      <li>Render culling (only draw visible tiles)</li>
+      <li>Pathfinding (grid-based navigation)</li>
+    </ul>
+
+    <footer>
+      <p>Primary sources: <a href="coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Matrix.html">MonoGame <code>Matrix</code> API</a>.</p>
+      <p>Ask me follow-up questions if you want help designing the class structure or debugging coordinate conversions.</p>
+    </footer>
+  </main>
+</body>
+</html>
