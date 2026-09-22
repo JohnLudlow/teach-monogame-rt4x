@@ -21,7 +21,6 @@
             <th>System</th>
             <th>Units</th>
             <th>Origin</th>
-            <th>Y-axis</th>
             <th>Use case</th>
           </tr>
         </thead>
@@ -30,77 +29,36 @@
             <td><strong>Input / Mouse</strong></td>
             <td>pixels</td>
             <td>top-left of window</td>
-            <td>downward ↓</td>
             <td>mouse position, touch coordinates</td>
           </tr>
           <tr>
             <td><strong>Screen / Viewport</strong></td>
             <td>pixels</td>
             <td>top-left of render target</td>
-            <td>downward ↓</td>
             <td>UI positioning, sprite drawing</td>
           </tr>
           <tr>
             <td><strong>World</strong></td>
             <td>game units</td>
             <td>arbitrary world space origin</td>
-            <td>your choice</td>
             <td>unit positions, map geometry</td>
           </tr>
           <tr>
             <td><strong>Grid</strong></td>
             <td>cells / tiles</td>
             <td>grid origin (cell 0,0)</td>
-            <td>downward ↓ or upward ↑</td>
             <td>tile selection, pathfinding, spatial queries</td>
           </tr>
           <tr>
             <td><strong>Local / Entity</strong></td>
             <td>relative to parent</td>
             <td>entity's own center or origin</td>
-            <td>depends on parent</td>
             <td>sprite animation, child object positioning</td>
           </tr>
         </tbody>
       </table>
-      <figcaption>Coordinate systems in a typical 2D game. Note that input and screen often differ slightly due to window borders and viewport offsets.</figcaption>
+      <figcaption>Coordinate systems in a typical 2D game. Each system serves a specific purpose and relationships exist between them.</figcaption>
     </figure>
-
-    <h3>Input vs Screen Coordinates</h3>
-
-    <p><strong>Input coordinates</strong> come from the operating system and are relative to the window's client area. <strong>Screen coordinates</strong> are relative to the rendering viewport.</p>
-
-    <p>In most cases, these are identical. They differ when:</p>
-    <ul>
-      <li>The game renders to a smaller viewport than the window (letterboxing/pillarboxing)</li>
-      <li>Multiple viewports are used (split-screen games)</li>
-      <li>UI overlays consume part of the window</li>
-      <li>Platform-specific window decorations affect coordinate systems</li>
-    </ul>
-
-    <pre>// Convert input to screen coordinates when they differ
-var inputPos = new Vector2(Mouse.GetState().X, Mouse.GetState().Y);
-var screenPos = inputPos - viewportOffset;  // Adjust for viewport if needed</pre>
-
-    <h3>Y-Axis Orientation</h3>
-
-    <p>In computer graphics, the Y-axis typically points downward from the top-left origin. This is why:</p>
-    <ul>
-      <li><code>Mouse.Y = 0</code> is at the top of the window</li>
-      <li>Increasing Y values move down the screen</li>
-      <li>Grid row 0 is typically at the top</li>
-    </ul>
-
-    <p>For grid-based games with integer positions, ensure your units respect grid alignment:</p>
-
-    <pre>// For units constrained to grid cells
-var unitGridPosition = new Point((int)worldPosition.X / cellSize, (int)worldPosition.Y / cellSize);
-
-// Position unit at center of grid cell
-var unitWorldPosition = new Vector2(
-    gridPosition.X * cellSize + cellSize / 2f,
-    gridPosition.Y * cellSize + cellSize / 2f
-);</pre>
 
     <h2>Transform Matrices</h2>
 
@@ -128,27 +86,13 @@ var unitWorldPosition = new Vector2(
 
     <h3>Combining Transforms</h3>
 
-    <p>Multiple transforms can be combined by matrix multiplication. Order matters because matrix multiplication is not commutative.</p>
-
-    <p><strong>For camera transforms, use: Scale first, then Translate</strong></p>
+    <p>Multiple transforms can be combined by matrix multiplication. Common order for camera transforms: scale first (zoom), then translate (pan).</p>
 
     <pre>// Pan camera by (100, 50) and zoom to 2x
-var scaling = Matrix.CreateScale(2f);
 var translation = Matrix.CreateTranslation(-100, -50, 0);
-var transform = scaling * translation;  // Scale first!
+var scaling = Matrix.CreateScale(2f);
+var transform = scaling * translation;  // Note: order matters!
 spriteBatch.Begin(transformMatrix: transform);</pre>
-
-    <p><strong>Why this order?</strong> The camera transform represents how world coordinates map to screen coordinates. When you zoom (scale), you want to zoom <em>around the camera's target point</em>, not around the screen origin. By scaling first, the translation adjustment remains at world scale, so a 100-unit camera pan stays 100 units regardless of zoom level.</p>
-
-    <pre>// Wrong: translate first, then scale
-var badTransform = translation * scaling;
-// Result: Translation is scaled too! A 100-unit pan becomes 200-unit pan at 2x zoom
-
-// Correct: scale first, then translate  
-var goodTransform = scaling * translation;
-// Result: Translation happens at world scale, zoom is applied to final coordinates</pre>
-
-    <p><strong>Matrix multiplication note:</strong> In MonoGame, transformations are applied right-to-left: <code>A * B</code> means "apply B first, then A". So <code>scaling * translation</code> applies translation first to world coordinates, then scaling to screen coordinates.</p>
 
     <h2>Conversion Functions</h2>
 
@@ -264,7 +208,7 @@ camera.Transform = Matrix.CreateTranslation(cameraTranslation.X, cameraTranslati
       <dd>Decide what one world unit represents (1 meter? 1 foot? 1 tile width?) and be consistent. Many 2D games use tile size as the world unit, so <code>GridToWorld</code> becomes trivial multiplication.</dd>
 
       <dt><strong>Bounds checking</strong></dt>
-      <dd>Always validate grid coordinates after conversion. Screen corners can map to negative or out-of-bounds grid positions. Typical validation: <code>gridPos.X >= 0 && gridPos.X &lt; grid.Width && gridPos.Y >= 0 && gridPos.Y &lt; grid.Height</code>. This prevents array index exceptions and ensures your spatial queries stay within valid game area.</dd>
+      <dd>Always validate grid coordinates after conversion. Screen corners can map to negative or out-of-bounds grid positions.</dd>
 
       <dt><strong>Order matters</strong></dt>
       <dd>Matrix multiplication is not commutative. <code>Scale * Translate</code> gives different results than <code>Translate * Scale</code>.</dd>
