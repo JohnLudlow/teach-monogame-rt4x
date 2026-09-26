@@ -8,14 +8,32 @@
 </head>
 <body>
   <main>
-    <p class="kicker">Lesson 0001 · 15 minutes</p>
-    <h1>Verify the MonoGame game loop</h1>
+    <p class="kicker">Lesson 1 · 15 minutes · Foundations</p>
+    <h1>Lesson 1 — Verify the game loop</h1>
     <p>Your RT4X needs a reliable, continuously updated simulation. Before terrain, cities, or UI, prove that the subject repository can build and run one MonoGame window.</p>
 
-    <h2>What you need to know</h2>
+    <div class="series">
+      <strong>Course foundations (1 of 6).</strong>
+      This is the very first win: a window that opens and closes cleanly.
+      From here the course builds toward a top-down, interactive strategy map.
+      See the <a href="../index.html">course index</a> for the whole arc.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#know">What you need to know</a></li>
+        <li><a href="#exercise">Your exercise</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="know">What you need to know</h2>
     <p>A MonoGame <code>Game</code> separates simulation from rendering: <code>Update</code> advances state and <code>Draw</code> displays that state. Read the <a href="../reference/monogame-frame-loop.html">frame-loop reference</a> first; it is the rule we will preserve when game-speed controls arrive.</p>
 
-    <h2>Your exercise</h2>
+    <h2 id="exercise">Your exercise</h2>
     <ol class="steps">
       <li>Open <code>monogame-rt4x</code> in Visual Studio or VS Code. It currently contains an empty solution and pins .NET SDK 10.0.400.</li>
       <li>Follow MonoGame’s official <a href="https://docs.monogame.net/articles/getting_started/index.html">Getting Started</a> guidance to install its templates and create a DesktopGL project <em>inside</em> <code>monogame-rt4x</code>. Use the current MonoGame template rather than hand-writing project plumbing.</li>
@@ -24,20 +42,34 @@
       <li>Open the generated game class. Find <code>Update</code> and <code>Draw</code>, then write one sentence for each without looking at the reference.</li>
     </ol>
 
-    <h2>Fast feedback</h2>
+    <h2 id="feedback">Fast feedback</h2>
     <p>From the subject root, run:</p>
     <pre>dotnet build monogame-rt4x.slnx
 dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
     <p><code>dotnet build</code> validates compilation; <code>dotnet run</code> launches the window. Both succeeding verify the toolchain and loop. If either fails, stop there and send me the exact command plus its output; do not troubleshoot by adding packages at random.</p>
 
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer the prompt <strong>before</strong> opening the answer:</p>
     <details class="callout">
-      <summary><strong>Retrieval check — reveal only after answering</strong></summary>
+      <summary><strong>Show answer</strong></summary>
       <p><strong>Prompt:</strong> Which method changes a unit’s position: <code>Update</code> or <code>Draw</code>?</p>
       <p><strong>Answer:</strong> <code>Update</code>. Drawing should only present the already-decided state.</p>
     </details>
 
-    <h2>Next</h2>
+    <h2 id="next">Where this goes next</h2>
     <p>Next: complete <a href="0002-convert-to-a-content-builder-project.html">Lesson 2 — Convert to a Content Builder project</a> before adding assets to the top-down prototype.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev disabled" aria-hidden="true" tabindex="-1">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Start of course</span>
+      </a>
+      <a class="next" href="0002-convert-to-a-content-builder-project.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 2 — Convert to a Content Builder project</span>
+      </a>
+    </nav>
 
     <footer>
       Primary source: <a href="https://docs.monogame.net/articles/getting_started/index.html">MonoGame Getting Started</a>. Ask me any follow-up question—especially when a generated file is unfamiliar.

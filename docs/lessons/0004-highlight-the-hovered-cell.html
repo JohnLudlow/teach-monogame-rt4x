@@ -8,14 +8,34 @@
 </head>
 <body>
   <main>
-    <p class="kicker">Lesson 0004 · 20 minutes</p>
-    <h1>Highlight the cell under the mouse</h1>
+    <p class="kicker">Lesson 4 · 20 minutes · Interaction</p>
+    <h1>Lesson 4 — Highlight the hovered cell</h1>
     <p>An RT4X map only becomes useful when the player can point at tiles intentionally. Your grid now renders; next, make the game detect which cell the mouse is over and draw a visible highlight on that one cell.</p>
 
-    <h2>What you need to know</h2>
-    <p>Because your grid is still in screen space, mouse-to-cell mapping is simple: subtract the grid origin, divide by the cell size, and reject anything outside the configured row and column bounds. Read the <a href="../reference/mouse-to-grid-cell.html">mouse-to-grid-cell reference</a> first, then keep the <a href="../reference/monogame-frame-loop.html">frame-loop reference</a> in mind: input sampling and hovered-cell state belong in <code>Update</code>, while the visual highlight belongs in <code>Draw</code>.</p>
+    <div class="series">
+      <strong>Coordinate systems series (4 of 6).</strong>
+      This lesson gets pointing working the quick way — with inline math in <code>Game1</code>.
+      Lessons 5 and 6 then teach the theory and refactor that math into reusable utilities.
+      That progression is deliberate: you feel the pain first, then fix it.
+    </div>
 
-    <h2>Your exercise</h2>
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#know">What you need to know</a></li>
+        <li><a href="#exercise">Your exercise</a></li>
+        <li><a href="#shape">Implementation shape</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="know">What you need to know</h2>
+    <p>Because your grid is still in screen space, mouse-to-cell mapping is simple: subtract the grid origin, divide by the cell size, and reject anything outside the configured row and column bounds. Read the <a href="../reference/mouse-to-grid-cell.html">mouse-to-grid-cell reference</a> first, then keep the <a href="../reference/monogame-frame-loop.html">frame-loop reference</a> in mind: input sampling and hovered-cell state belong in <code>Update</code>, while the visual highlight belongs in <code>Draw</code>.</p>
+    <p>You will write this conversion <em>inline</em> in <code>Game1</code> for now. That is intentional. Doing it by hand once makes the abstraction in <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a> feel earned rather than arbitrary.</p>
+
+    <h2 id="exercise">Your exercise</h2>
     <ol class="steps">
       <li>In <code>monogame-rt4x/FourxGame.MonoGame/Game1.cs</code>, add state for the currently hovered cell. Keep it simple: either a nullable pair of grid coordinates, or a boolean plus row and column fields.</li>
       <li>In <code>Update</code>, call <code>Mouse.GetState()</code>. Convert the mouse position into grid-local coordinates by subtracting the same origin you used to place the grid.</li>
@@ -24,7 +44,7 @@
       <li>Move the mouse around the window. You win when exactly one cell highlights under the cursor, and no cell stays highlighted when the cursor leaves the grid.</li>
     </ol>
 
-    <h2>Implementation shape</h2>
+    <h2 id="shape">Implementation shape</h2>
     <pre>protected override void Update(GameTime gameTime)
 {
     var mouse = Mouse.GetState();
@@ -49,14 +69,14 @@ protected override void Draw(GameTime gameTime)
 
     base.Draw(gameTime);
 }</pre>
-    <p>The key design choice is that <em>the same grid origin and cell size</em> drive both the grid drawing and the mouse mapping. If those values diverge, input will feel haunted.</p>
+    <p>The key design choice is that <em>the same grid origin and cell size</em> drive both the grid drawing and the mouse mapping. If those values diverge, input will feel haunted. (This duplication is exactly the smell Lesson 6 removes.)</p>
 
-    <h2>Fast feedback</h2>
+    <h2 id="feedback">Fast feedback</h2>
     <pre>dotnet build monogame-rt4x.slnx
 dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
     <p>Success looks like one highlight tracking the mouse cell-by-cell. If the highlight is offset, debug in this order: wrong grid origin, wrong cell size, forgotten bounds check, then row/column mixed up.</p>
 
-    <h2>Retrieval check</h2>
+    <h2 id="retrieval">Retrieval check</h2>
     <p>Answer both prompts <strong>before</strong> opening the answer:</p>
     <ol class="steps">
       <li>What two numbers must be subtracted from the mouse position before dividing by <code>CellSize</code>?</li>
@@ -67,8 +87,20 @@ dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
       <p>You subtract the grid origin: the grid's top-left <code>x</code> and <code>y</code> screen coordinates. Hovered-cell state should be updated in <code>Update</code>; <code>Draw</code> should only render the current highlight.</p>
     </details>
 
-    <h2>Next</h2>
-    <p>If you need the rendering scaffold again, revisit <a href="0003-draw-a-screen-space-grid.html">Lesson 3 — Draw a screen-space grid</a>. Once hover works cleanly, the next lesson will turn pointing into intent by adding click selection for a cell.</p>
+    <h2 id="next">Where this goes next</h2>
+    <p>You now have inline conversion math living in <code>Game1</code>. It works, but it will be copied the moment a second feature needs a cell from a mouse position. Before that happens, <a href="0005-understand-coordinate-systems.html">Lesson 5</a> gives you the vocabulary of coordinate systems, and <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a> lifts this math out of <code>Game1</code> into a reusable <code>Transforms</code> utility and a <code>Camera</code>.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0003-draw-a-screen-space-grid.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 3 — Draw a screen-space grid</span>
+      </a>
+      <a class="next" href="0005-understand-coordinate-systems.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 5 — Understand coordinate systems</span>
+      </a>
+    </nav>
 
     <footer>
       Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.Mouse.html">MonoGame <code>Mouse</code> API</a> and <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a>. Ask me follow-up questions if you want help testing your bounds logic or choosing a good hovered-cell representation.

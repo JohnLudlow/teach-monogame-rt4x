@@ -8,14 +8,32 @@
 </head>
 <body>
   <main>
-    <p class="kicker">Lesson 0002 · 20 minutes</p>
-    <h1>Replace legacy MGCB with a Content Builder project</h1>
+    <p class="kicker">Lesson 2 · 20 minutes · Foundations</p>
+    <h1>Lesson 2 — Convert to a Content Builder project</h1>
     <p>Your template currently uses the legacy <code>Content.mgcb</code> file and <code>MonoGame.Content.Builder.Task</code>. Convert now—before the top-down prototype acquires assets—so content rules live in reviewed C# alongside the game.</p>
 
-    <h2>Model</h2>
+    <div class="series">
+      <strong>Course foundations (2 of 6).</strong>
+      With the loop proven in Lesson 1, this lesson fixes how content is built
+      so assets never become a mess later. It is the last setup step before the
+      first visuals appear. See the <a href="../index.html">course index</a> for the whole arc.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#model">The model</a></li>
+        <li><a href="#exercise">Your exercise</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="model">The model</h2>
     <p>Read the <a href="../reference/content-builder-project-map.html">Content Builder project map</a>. The game still loads from <code>Content</code>; a separate console project produces that folder during the build.</p>
 
-    <h2>Your exercise</h2>
+    <h2 id="exercise">Your exercise</h2>
     <ol class="steps">
       <li>From <code>monogame-rt4x</code>, create a sibling builder project and add it to the solution:
         <pre>dotnet new mgcb -o FourxGame.ContentBuilder
@@ -29,13 +47,13 @@ dotnet sln monogame-rt4x.slnx add FourxGame.ContentBuilder/FourxGame.ContentBuil
       <li>Inspect <code>FourxGame.ContentBuilder/Builder/Builder.cs</code>. Leave its collection empty for now: there are no real assets to build yet. Its <code>Assets/readme.txt</code> merely marks the source-asset location.</li>
     </ol>
 
-    <h2>Fast feedback</h2>
+    <h2 id="feedback">Fast feedback</h2>
     <pre>dotnet list FourxGame.MonoGame/FourxGame.MonoGame.csproj package
 dotnet build monogame-rt4x.slnx
 dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
     <p>The package list must not contain <code>MonoGame.Content.Builder.Task</code>. The build should then succeed with the builder project included, and the same cornflower-blue window should run. If it fails, paste the first error and your game <code>.csproj</code>; do not restore the legacy task as a workaround.</p>
 
-    <h2>Retrieval check</h2>
+    <h2 id="retrieval">Retrieval check</h2>
     <p>Answer both prompts <strong>before</strong> opening the answer:</p>
     <ol class="steps">
       <li>Where do raw PNG files belong after this conversion?</li>
@@ -46,8 +64,20 @@ dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
       <p>Raw PNG files belong in <code>FourxGame.ContentBuilder/Assets/</code>, then an explicit rule in <code>Builder.cs</code> selects them for processing. The import hooks content building into the game build and makes generated content available in the game output.</p>
     </details>
 
-    <h2>Next</h2>
-    <p>If you need to revisit the prerequisite, return to <a href="0001-verify-the-game-loop.html">Lesson 1 — Verify the game loop</a>. Once all three fast-feedback checks pass, continue to <a href="0003-draw-a-screen-space-grid.html">Lesson 3 — Draw a screen-space grid</a>, where the first top-down visual appears without committing to terrain generation yet.</p>
+    <h2 id="next">Where this goes next</h2>
+    <p>Once all three fast-feedback checks pass, continue to <a href="0003-draw-a-screen-space-grid.html">Lesson 3 — Draw a screen-space grid</a>, where the first top-down visual appears without committing to terrain generation yet.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0001-verify-the-game-loop.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 1 — Verify the game loop</span>
+      </a>
+      <a class="next" href="0003-draw-a-screen-space-grid.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 3 — Draw a screen-space grid</span>
+      </a>
+    </nav>
 
     <footer>
       Primary source: <a href="https://docs.monogame.net/articles/getting_started/content_pipeline/content_builder_project.html?tabs=vscode">MonoGame: Working with new Content Builder Projects</a>. Ask me if an MSBuild import or generated builder file is unclear.

@@ -88,10 +88,10 @@
 
     <p>Multiple transforms can be combined by matrix multiplication. Common order for camera transforms: scale first (zoom), then translate (pan).</p>
 
-    <pre>// Pan camera by (100, 50) and zoom to 2x
-var translation = Matrix.CreateTranslation(-100, -50, 0);
+    <pre>// Zoom to 2x, then position the world under the view (matches the Camera class)
 var scaling = Matrix.CreateScale(2f);
-var transform = scaling * translation;  // Note: order matters!
+var translation = Matrix.CreateTranslation(position.X, position.Y, 0);
+var transform = scaling * translation;  // scale first, then translate — order matters!
 spriteBatch.Begin(transformMatrix: transform);</pre>
 
     <h2>Conversion Functions</h2>
@@ -107,44 +107,44 @@ Vector2 WorldToScreen(Vector2 worldPosition, Camera camera)
 // Screen to World: invert camera transform
 Vector2 ScreenToWorld(Vector2 screenPosition, Camera camera)
 {
-    Matrix inverse;
-    Matrix.Invert(ref camera.Transform, out inverse);
+    var transform = camera.Transform;
+    Matrix.Invert(ref transform, out var inverse);
     return Vector2.Transform(screenPosition, inverse);
 }</pre>
 
     <h3>World ↔ Grid</h3>
 
-    <pre>// World to Grid: divide by cell size and truncate
-Vector2 WorldToGrid(Vector2 worldPosition, Grid grid)
+    <pre>// World to Grid: subtract origin, divide by cell size, floor to a whole cell
+Point WorldToGrid(Vector2 worldPosition, Grid grid)
 {
     var localX = worldPosition.X - grid.Origin.X;
     var localY = worldPosition.Y - grid.Origin.Y;
-    return new Vector2(
-        (int)(localX / grid.GridCellSize),
-        (int)(localY / grid.GridCellSize)
+    return new Point(
+        (int)Math.Floor(localX / grid.GridCellSize),
+        (int)Math.Floor(localY / grid.GridCellSize)
     );
 }
 
-// Grid to World: multiply by cell size and add origin
-Vector2 GridToWorld(Vector2 gridPosition, Grid grid)
+// Grid to World: multiply by cell size and add origin (cell centre)
+Vector2 GridToWorld(Point gridPosition, Grid grid)
 {
     return new Vector2(
-        grid.Origin.X + gridPosition.X * grid.GridCellSize,
-        grid.Origin.Y + gridPosition.Y * grid.GridCellSize
+        grid.Origin.X + gridPosition.X * grid.GridCellSize + grid.GridCellSize / 2f,
+        grid.Origin.Y + gridPosition.Y * grid.GridCellSize + grid.GridCellSize / 2f
     );
 }</pre>
 
     <h3>Screen ↔ Grid (Combined)</h3>
 
     <pre>// Screen to Grid: combine screen-to-world and world-to-grid
-Vector2 ScreenToGrid(Vector2 screenPosition, Camera camera, Grid grid)
+Point ScreenToGrid(Vector2 screenPosition, Camera camera, Grid grid)
 {
     var world = ScreenToWorld(screenPosition, camera);
     return WorldToGrid(world, grid);
 }
 
 // Grid to Screen: combine grid-to-world and world-to-screen
-Vector2 GridToScreen(Vector2 gridPosition, Camera camera, Grid grid)
+Vector2 GridToScreen(Point gridPosition, Camera camera, Grid grid)
 {
     var world = GridToWorld(gridPosition, grid);
     return WorldToScreen(world, camera);
@@ -165,7 +165,7 @@ Vector2 GridToScreen(Vector2 gridPosition, Camera camera, Grid grid)
 var world = ScreenToWorld(mouseScreen, camera);
 var gridPos = WorldToGrid(world, grid);
 
-if (gridPos.X >= 0 && gridPos.X &lt; grid.Width && gridPos.Y >= 0 && gridPos.Y &lt; grid.Height)
+if (gridPos.X >= 0 && gridPos.X &lt; grid.GridSizeX && gridPos.Y >= 0 && gridPos.Y &lt; grid.GridSizeY)
 {
     // Valid tile selected
 }</pre>
@@ -192,11 +192,9 @@ var gridBottomRight = WorldToGrid(screenBottomRight, grid);
 var targetWorld = entity.Position;
 var screenCenter = new Vector2(viewportWidth / 2f, viewportHeight / 2f);
 
-// Camera translation should move target to screen center
-var cameraTranslation = screenCenter - targetWorld;
-
-// Update camera transform
-camera.Transform = Matrix.CreateTranslation(cameraTranslation.X, cameraTranslation.Y, 0);</pre>
+// Move the camera so the target lands at screen centre.
+// Transform is a lazy getter, so set Position and it rebuilds itself.
+camera.Position = screenCenter - targetWorld;</pre>
 
     <h2>RT4X Rules</h2>
 
@@ -226,6 +224,7 @@ camera.Transform = Matrix.CreateTranslation(cameraTranslation.X, cameraTranslati
     </ol>
 
     <footer>
+      <p>Used by <a href="../lessons/0005-understand-coordinate-systems.html">Lesson 5 — Understand coordinate systems</a> (theory) and <a href="../lessons/0006-build-coordinate-utilities-and-camera.html">Lesson 6 — Build coordinate utilities and camera</a> (implementation).</p>
       <p>Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html">MonoGame <code>SpriteBatch</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Matrix.html">MonoGame <code>Matrix</code> API</a>.</p>
       <p>Ask me follow-up questions if you want help designing the utility class structure or deciding on world units for your RT4X game.</p>
     </footer>
