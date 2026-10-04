@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screen-space grid recipe</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · MonoGame rendering</p>
+    <h1>Screen-space grid recipe</h1>
+    <p>Use this when you want a visible strategy map structure before you have real art assets or a camera system.</p>
+
+    <pre>LoadContent:
+  create 1x1 white Texture2D
+  upload one white pixel with SetData
+
+Draw:
+  Begin SpriteBatch
+  draw vertical lines as tall rectangles
+  draw horizontal lines as wide rectangles
+  End SpriteBatch</pre>
+
+    <dl>
+      <dt><strong>1x1 white texture</strong></dt>
+      <dd>A single white pixel can be stretched into any line or filled rectangle because <code>SpriteBatch.Draw</code> scales the source texture into a destination rectangle and tints it at draw time.</dd>
+
+      <dt><strong>Screen space</strong></dt>
+      <dd>Coordinates measured in window pixels, not world coordinates. This keeps the first grid independent of scrolling and zoom.</dd>
+
+      <dt><strong>Rectangle line</strong></dt>
+      <dd>A grid line is just a very thin rectangle, such as 1 pixel wide by many pixels tall.</dd>
+
+      <dt><strong>Update vs Draw</strong></dt>
+      <dd>The grid's appearance is rendered in <code>Draw</code>; future map-state changes, cursor movement, and simulation decisions still belong in <code>Update</code>.</dd>
+    </dl>
+
+    <p class="callout"><strong>RT4X rule:</strong> build the first map as a stable visual scaffold. Add terrain, cursor logic, and time-driven simulation later, one layer at a time.</p>
+
+    <p>Sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html">MonoGame <code>SpriteBatch</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.Texture2D.html">MonoGame <code>Texture2D</code> API</a>.</p>
+  </main>
+</body>
+</html>

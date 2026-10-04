@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MonoGame RT4X — Course index</title>
+  <link rel="stylesheet" href="assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Course index · MonoGame RT4X</p>
+    <h1>Building a fantasy real-time 4X in MonoGame</h1>
+    <p class="course-intro">
+      This course turns a blank MonoGame project into the foundations of a lo-fi, top-down
+      fantasy real-time 4X game — the <code>monogame-rt4x</code> subject repository. Each lesson is
+      short, hands-on, and ends in one tangible win you build on. You write the code in the
+      subject repo; these lessons and references stay here to guide and remind you.
+    </p>
+    <p>
+      Work through the lessons in order — each assumes the one before it. The references are the
+      compressed, printable essence of the lessons; return to them whenever you need a quick reminder.
+      Ask me follow-up questions at any point: I'm your teacher, not just a page of notes.
+    </p>
+
+    <h2 id="lessons">Lessons</h2>
+
+    <p class="phase">Foundations · get it building and running</p>
+    <ul class="lesson-list">
+      <li>
+        <a class="lesson-card" href="lessons/0001-verify-the-game-loop.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 1 — Verify the game loop</span>
+            <span class="card-meta">15 min</span>
+          </span>
+          <span class="card-desc">Create and run a MonoGame window, and separate <code>Update</code> (simulation) from <code>Draw</code> (presentation).</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0002-convert-to-a-content-builder-project.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 2 — Convert to a Content Builder project</span>
+            <span class="card-meta">20 min</span>
+          </span>
+          <span class="card-desc">Replace the legacy <code>Content.mgcb</code> pipeline with a reviewed, C#-based Content Builder project before any assets arrive.</span>
+        </a>
+      </li>
+    </ul>
+
+    <p class="phase">Rendering · the first thing you see</p>
+    <ul class="lesson-list">
+      <li>
+        <a class="lesson-card" href="lessons/0003-draw-a-screen-space-grid.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 3 — Draw a screen-space grid</span>
+            <span class="card-meta">20 min</span>
+          </span>
+          <span class="card-desc">Draw a top-down playfield entirely from code, turning a single 1×1 pixel into every grid line.</span>
+        </a>
+      </li>
+    </ul>
+
+    <p class="phase">Interaction · point at the world</p>
+    <ul class="lesson-list">
+      <li>
+        <a class="lesson-card" href="lessons/0004-highlight-the-hovered-cell.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 4 — Highlight the hovered cell</span>
+            <span class="card-meta">20 min</span>
+          </span>
+          <span class="card-desc">Map the mouse to a grid cell with quick inline math and highlight it — deliberately the "before" state for the refactor to come.</span>
+        </a>
+      </li>
+    </ul>
+
+    <p class="phase">Coordinate systems · theory then refactor</p>
+    <ul class="lesson-list">
+      <li>
+        <a class="lesson-card" href="lessons/0005-understand-coordinate-systems.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 5 — Understand coordinate systems</span>
+            <span class="card-meta">25 min</span>
+          </span>
+          <span class="card-desc">The knowledge lesson: screen, world, and grid spaces, transform matrices, the conversion chain, and the traps that cause off-by-one clicks.</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0006-build-coordinate-utilities-and-camera.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 6 — Build coordinate utilities and camera</span>
+            <span class="card-meta">40 min</span>
+          </span>
+          <span class="card-desc">Lift the inline math from Lesson 4 into a testable <code>Transforms</code> utility, a <code>Camera</code> that owns the view matrix, and convenience methods on <code>Grid</code>.</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0007-camera-controls-pan-and-zoom.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 7 — Camera controls: pan and zoom</span>
+            <span class="card-meta">35 min</span>
+          </span>
+          <span class="card-desc">Wire WASD/arrow panning and mouse-wheel zoom into the camera (frame-rate independent, zoom-toward-cursor), and confirm cell picking still lands correctly while the view moves.</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0008-input-command-layer-and-drag-panning.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 8 — An input command layer (and drag-panning)</span>
+            <span class="card-meta">45 min</span>
+          </span>
+          <span class="card-desc">Lift input out of <code>Game1</code> into a rebinding-ready command layer: devices produce device-agnostic commands, a <code>CameraController</code> applies them, and middle-mouse drag-panning falls out almost for free.</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0009-place-first-settlement-on-a-tile.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 9 — Place a settlement on a tile</span>
+            <span class="card-meta">45 min</span>
+          </span>
+          <span class="card-desc">Turn a left click into a durable world action: resolve it through the camera and grid, validate one settlement per tile, and draw a marker that stays attached through pan and zoom.</span>
+        </a>
+      </li>
+    </ul>
+
+    <h2 id="references">References</h2>
+    <p>Compressed, quick-reference companions to the lessons. Good to keep open while you work — or print out.</p>
+    <ul class="ref-list">
+      <li><a href="reference/monogame-frame-loop.html">MonoGame frame loop</a> — the <code>Update</code>/<code>Draw</code> split (Lessons 1, 3).</li>
+      <li><a href="reference/content-builder-project-map.html">Content Builder project map</a> — how the builder project feeds the game's <code>Content</code> (Lesson 2).</li>
+      <li><a href="reference/screen-space-grid-recipe.html">Screen-space grid recipe</a> — drawing grid lines from a 1×1 pixel (Lesson 3).</li>
+      <li><a href="reference/mouse-to-grid-cell.html">Mouse-to-grid-cell</a> — the inline screen-space conversion (Lesson 4).</li>
+      <li><a href="reference/coordinate-systems-and-transforms.html">Coordinate systems and transforms</a> — the five spaces, matrices, and conversion functions (Lessons 5, 6).</li>
+      <li><a href="reference/coordinate-systems-quiz.html">Coordinate systems quiz</a> — self-test to space out your recall (Lesson 5).</li>
+      <li><a href="reference/tile-placement-pipeline.html">Tile placement pipeline</a> — command, coordinate, occupancy, and rendering boundaries for durable map interactions (Lesson 9).</li>
+    </ul>
+
+    <h2 id="mission">The mission</h2>
+    <p>
+      The goal is to grow <code>monogame-rt4x</code> from a working prototype into an independently
+      maintainable fantasy RT4X — real-time play with time controls, empire building, and lo-fi
+      visuals — while learning practical MonoGame along the way. Lessons stay tied to that mission
+      so nothing feels like an abstract tutorial exercise.
+    </p>
+
+    <footer>
+      <p>Built with the <a href="https://github.com/mattpocock/skills/blob/main/skills/productivity/teach/SKILL.md">teach</a> approach. Lessons live in <code>docs/lessons/</code>, references in <code>docs/reference/</code>. Ask me anything that's unclear — that's what I'm here for.</p>
+    </footer>
+  </main>
+</body>
+</html>

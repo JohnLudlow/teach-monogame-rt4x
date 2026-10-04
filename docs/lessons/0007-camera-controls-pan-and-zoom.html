@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 7 — Camera controls: pan and zoom</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 7 · 35 minutes · Interaction</p>
+    <h1>Lesson 7 — Camera controls: pan and zoom</h1>
+    <p>You built a <code>Camera</code> in Lesson 6 but never moved it. This lesson wires keyboard panning and mouse-wheel zoom into <code>Update</code>, draws the world through the camera, and confirms the hovered-cell highlight still lands on the right tile as the view moves. That last part is the whole payoff of the refactor: because picking and drawing share one transform, pointing keeps working through pan and zoom for free.</p>
+
+    <div class="series">
+      <strong>Interaction (7 of the course so far).</strong>
+      This lesson spends the <code>Camera</code> you built in
+      <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a>.
+      See the <a href="../index.html">course index</a> for the whole arc.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#draw">Step 0 — Draw through the camera</a></li>
+        <li><a href="#pan">Step 1 — Pan with the keyboard</a></li>
+        <li><a href="#framerate">Step 2 — Make panning frame-rate independent</a></li>
+        <li><a href="#zoom">Step 3 — Zoom with the mouse wheel</a></li>
+        <li><a href="#zoompoint">Step 4 — Zoom toward a point (the tricky bit)</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="draw">Step 0 — Draw through the camera</h2>
+    <p>Right now your <code>Draw</code> calls <code>_spriteBatch.Begin()</code> with no transform, so the world is drawn in raw screen space — the camera affects picking but not rendering. Fix that first, before adding any controls:</p>
+    <pre>_spriteBatch.Begin(transformMatrix: _camera.Transform);</pre>
+    <p>With an identity camera (zoom 1, position 0) this changes nothing visually — the grid renders exactly where it did. But now the camera's transform drives both drawing <em>and</em> picking. That shared transform is what keeps the highlight correct once the camera moves. Build and run to confirm the grid looks unchanged.</p>
+
+    <div class="callout">
+      <h3>Why this must come first</h3>
+      <p>If you added panning before this line, the world would sit still while your hovered cell drifted — picking would move but rendering wouldn't. Wiring the transform into <code>Begin</code> first means every later step moves both together.</p>
+    </div>
+
+    <h2 id="pan">Step 1 — Pan with the keyboard</h2>
+    <p>In <code>Update</code>, read the keyboard and call <code>_camera.Pan</code>. Your <code>Camera.Transform</code> is <code>CreateScale(Zoom) * CreateTranslation(Position…)</code>, so increasing <code>Position.X</code> shifts the drawn world to the <em>right</em>.</p>
+    <p><strong>Decide the sign deliberately.</strong> Think about what the key should mean. If pressing <kbd>D</kbd> means "look further right" (like a strategy game scrolling the map right), the world content must move <em>left</em> under the viewport — so <code>Position.X</code> should <em>decrease</em>. If instead you think of the keys as "drag the world", the sign flips. There is no universally correct choice; pick one, write it down, and stay consistent. This lesson assumes camera-style ("look toward"):</p>
+    <pre>var keyboard = Keyboard.GetState();
+var pan = Vector2.Zero;
+if (keyboard.IsKeyDown(Keys.A) || keyboard.IsKeyDown(Keys.Left))  pan.X += 1; // world moves right => look left
+if (keyboard.IsKeyDown(Keys.D) || keyboard.IsKeyDown(Keys.Right)) pan.X -= 1;
+if (keyboard.IsKeyDown(Keys.W) || keyboard.IsKeyDown(Keys.Up))    pan.Y += 1;
+if (keyboard.IsKeyDown(Keys.S) || keyboard.IsKeyDown(Keys.Down))  pan.Y -= 1;
+
+if (pan != Vector2.Zero)
+    _camera.Pan(pan);   // temporary: fixed step, we fix the speed next</pre>
+    <p>Run it. Holding a key should scroll the map. It will feel either too fast or tied to your frame rate — that's Step 2.</p>
+
+    <h2 id="framerate">Step 2 — Make panning frame-rate independent</h2>
+    <p>A fixed <code>pan</code> per frame means the camera moves faster on a 240&nbsp;Hz monitor than a 60&nbsp;Hz one — the game literally plays differently on different hardware. The fix is the same principle as the <a href="../reference/monogame-frame-loop.html">frame loop</a>: scale movement by elapsed time, so speed is measured in <em>world units per second</em>, not per frame.</p>
+    <pre>const float panSpeed = 400f; // world units per second
+var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+if (pan != Vector2.Zero)
+{
+    pan.Normalize();               // so diagonal isn't faster than straight
+    _camera.Pan(pan * panSpeed * dt);
+}</pre>
+    <p>Two things worth noticing: <code>Normalize</code> stops diagonal panning being ~1.4× faster (the length of a (1,1) vector), and multiplying by <code>dt</code> makes 400 units/second mean the same thing regardless of frame rate.</p>
+
+    <h2 id="zoom">Step 3 — Zoom with the mouse wheel</h2>
+    <p>The mouse wheel is not a per-frame delta. <code>MouseState.ScrollWheelValue</code> is a <em>cumulative</em> total since the game started (<a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">docs</a>). To get "how much did the wheel move this frame", you must remember last frame's value and subtract:</p>
+    <pre>// field on Game1:
+private int _previousScroll;
+
+// in Update, after Mouse.GetState():
+var scrollDelta = mouse.ScrollWheelValue - _previousScroll;
+_previousScroll = mouse.ScrollWheelValue;
+
+if (scrollDelta != 0)
+{
+    // each wheel notch is ~120 units; turn it into a small multiplicative step
+    var factor = 1f + (scrollDelta / 120f) * 0.1f;
+    _camera.Zoom *= factor;   // Camera clamps to [0.1, 5]
+}</pre>
+    <p><strong>Why multiply, not add?</strong> Zoom feels natural when each notch changes the view by a <em>percentage</em>, not a fixed amount — going 1×→2× should feel like 2×→4×. Multiplying by a factor gives that; adding a constant would make zooming feel sluggish when zoomed out and jumpy when zoomed in. Your <code>Camera.Zoom</code> setter already clamps the result, so you can't invert or collapse the view.</p>
+
+    <h2 id="zoompoint">Step 4 — Zoom toward a point (the tricky bit)</h2>
+    <p>Run Step 3 and you'll see the problem: the view zooms toward the <em>world origin</em> (top-left of the grid), not toward the cursor or the screen centre. That's because <code>CreateScale</code> scales distance from <code>(0,0)</code>, and your camera's translation doesn't compensate.</p>
+    <p>The fix is a classic: to zoom toward a screen point <em>p</em>, find the world position under <em>p</em> before the zoom, apply the zoom, then move the camera so that same world position is under <em>p</em> again. Using the utilities you already have:</p>
+    <pre>// zoom toward the mouse cursor
+var worldBefore = Transforms.ScreenToWorld(mousePos, _camera.Transform);
+_camera.Zoom *= factor;
+var worldAfter = Transforms.ScreenToWorld(mousePos, _camera.Transform);
+_camera.Pan(worldAfter - worldBefore);   // nudge so the cursor stays over the same tile</pre>
+    <p>This is the moment the Lesson 6 investment really pays: you fix a fiddly camera behaviour using nothing but <code>ScreenToWorld</code> and <code>Pan</code>, with no new math. Try zooming to the screen centre instead by feeding a centre point rather than <code>mousePos</code> — same technique.</p>
+
+    <div class="callout">
+      <h3>Watch the reading order</h3>
+      <p><code>worldBefore</code> must be read with the <em>old</em> zoom and <code>worldAfter</code> with the <em>new</em> zoom — that is why <code>_camera.Zoom *= factor;</code> sits between them. Because <code>Transform</code> is a lazy getter, each <code>ScreenToWorld</code> call automatically uses the current camera state; you don't rebuild anything by hand.</p>
+    </div>
+
+    <h2 id="feedback">Fast feedback</h2>
+    <pre>dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>Success looks like:</p>
+    <ul class="steps">
+      <li>Holding WASD / arrows scrolls the map smoothly, at the same speed regardless of frame rate.</li>
+      <li>Diagonal panning is the same speed as straight panning.</li>
+      <li>The mouse wheel zooms in and out, stopping at the clamp limits without inverting.</li>
+      <li>Zoom stays centred on the cursor (Step 4), not the top-left corner.</li>
+      <li><strong>The red highlight still lands on the correct cell</strong> while you pan and zoom — the real proof the shared transform works.</li>
+    </ul>
+    <p>If the highlight drifts away from the cursor as you zoom, the usual cause is drawing with a different transform than you pick with — confirm both <code>Begin</code> and <code>ScreenToGrid</code> use <code>_camera.Transform</code>.</p>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer all three <strong>before</strong> opening the answers:</p>
+    <ol class="steps">
+      <li>Why multiply the pan vector by <code>gameTime.ElapsedGameTime.TotalSeconds</code>?</li>
+      <li><code>ScrollWheelValue</code> gives you what — a per-frame delta or a running total — and what must you do to get the delta?</li>
+      <li>To keep the cursor over the same tile while zooming, what three steps do you perform, in order?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li>To make movement frame-rate independent: speed becomes world units per <em>second</em>, so the camera moves the same amount on fast and slow hardware.</li>
+        <li>A cumulative running total since game start. Store last frame's value and subtract it from this frame's value to get the delta.</li>
+        <li>Read the world position under the cursor with the old zoom; apply the zoom; read the world position under the cursor again and pan by the difference.</li>
+      </ol>
+    </details>
+
+    <h2 id="next">Where this goes next</h2>
+    <p>You now have a controllable camera over a pickable grid — the core interaction loop of a strategy game. Natural next steps: clamp the camera so it can't scroll past the map edges (you already have <code>Grid</code> bounds and <code>GridToWorld</code>), render only the visible cells (culling, using <code>ScreenToWorld</code> on the viewport corners), or move on to placing something <em>on</em> a selected tile. Tell me which you'd like to tackle.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0006-build-coordinate-utilities-and-camera.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 6 — Build coordinate utilities and camera</span>
+      </a>
+      <a class="next" href="0008-input-command-layer-and-drag-panning.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 8 — An input command layer (and drag-panning)</span>
+      </a>
+    </nav>
+
+    <footer>
+      <p>Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.Keyboard.html">MonoGame <code>Keyboard</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a>, and the <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a> reference.</p>
+      <p>Ask me follow-up questions — especially about the pan-direction sign or the zoom-toward-point trick, which trip up most people the first time.</p>
+    </footer>
+  </main>
+</body>
+</html>

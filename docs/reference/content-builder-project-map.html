@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Content Builder project map</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · Content pipeline</p>
+    <h1>Content Builder project map</h1>
+    <pre>FourxGame.ContentBuilder/
+├── Assets/                 raw source assets
+├── Builder/Builder.cs      rules: what to build or copy
+└── BuildContent.targets    hooks builder output into the game build
+
+FourxGame.MonoGame/
+└── FourxGame.MonoGame.csproj
+    └── Import ..\FourxGame.ContentBuilder\BuildContent.targets</pre>
+    <dl>
+      <dt><strong>Builder project</strong></dt>
+      <dd>A separate console project that builds source assets into runtime content. It replaces legacy MGCB-editor configuration.</dd>
+      <dt><strong>ContentCollection</strong></dt>
+      <dd>The C# rules that select and process assets. Nothing is built by default: add explicit rules as asset categories appear.</dd>
+      <dt><strong>BuildContent.targets</strong></dt>
+      <dd>An MSBuild import in the game project that builds and copies content with the game.</dd>
+    </dl>
+    <p class="callout"><strong>Keep:</strong> <code>Content.RootDirectory = "Content"</code>. The runtime content directory remains <code>Content</code>; the builder only changes how it is produced.</p>
+    <p>Source: <a href="https://docs.monogame.net/articles/getting_started/content_pipeline/content_builder_project.html">MonoGame: Working with new Content Builder Projects</a>.</p>
+  </main>
+</body>
+</html>

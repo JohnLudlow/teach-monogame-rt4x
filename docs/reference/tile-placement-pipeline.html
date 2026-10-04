@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tile placement pipeline</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · World interaction</p>
+    <h1>Tile placement pipeline</h1>
+    <p>A compact pattern for making an RT4X map interaction durable: the player points in screen space, the game resolves the pointing position through the camera and grid, the world validates an action on a cell, and rendering derives pixels from that stored cell.</p>
+
+    <h2>Pipeline</h2>
+    <pre>device state
+  MouseState.LeftButton + (X, Y)
+       │ edge: pressed now, released previously
+       ▼
+input command
+  PlaceSettlementAtScreenCommand(ScreenPosition)
+       │ Screen → Grid using the current Camera.Transform
+       ▼
+world rule
+  TryPlace(Point cell)
+  ├─ reject: cell is out of bounds
+  ├─ reject: cell is occupied
+  └─ accept: settlements.TryAdd(cell, new Settlement(cell))
+       │ Grid → World rectangle
+       ▼
+render
+  marker centred in GridToWorldRect(settlement.Cell)
+  inside SpriteBatch.Begin(transformMatrix: camera.Transform)</pre>
+
+    <h2>Ownership table</h2>
+    <table>
+      <thead>
+        <tr><th>Concern</th><th>Owns it</th><th>Must not own it</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Button transitions and pointer pixels</td><td><code>InputReader</code></td><td><code>SettlementPlacementSystem</code></td></tr>
+        <tr><td>Screen → Grid conversion</td><td>placement controller boundary</td><td>stored <code>Settlement</code></td></tr>
+        <tr><td>In-bounds and unoccupied rule</td><td><code>SettlementPlacementSystem</code></td><td>drawing code</td></tr>
+        <tr><td>Persistent location</td><td><code>Settlement.Cell : Point</code></td><td>screen pixels or a <code>Rectangle</code></td></tr>
+        <tr><td>Visual shape and colour</td><td>renderer / <code>Game1.Draw...</code></td><td>input reader</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Rules worth preserving</h2>
+    <dl>
+      <dt><strong>Store grid coordinates</strong></dt>
+      <dd>A grid cell is stable while camera position and zoom change. Convert it to world coordinates only to draw or query geometry.</dd>
+      <dt><strong>Use a press edge, not a held state</strong></dt>
+      <dd><code>isDown &amp;&amp; !wasDown</code> emits one action per press. A held state repeats every update and needs a deliberately designed repeat policy.</dd>
+      <dt><strong>Validate in the world system</strong></dt>
+      <dd>The system rejects invalid or occupied cells even if the UI later tries to prevent them. The world rule remains true for clicks, AI, replay, or network commands.</dd>
+      <dt><strong>Use one camera transform</strong></dt>
+      <dd>Resolve a click with <code>Grid.ScreenToGrid(screen, camera.Transform)</code>; draw markers in the sprite batch using that same transform. This keeps picking and rendering aligned through pan and zoom.</dd>
+      <dt><strong>Draw from data, never store draw rectangles</strong></dt>
+      <dd><code>GridToWorldRect(cell)</code> is derived presentation data. Recompute it when drawing rather than letting presentation state become a second source of truth.</dd>
+    </dl>
+
+    <h2>Minimal data shape</h2>
+    <pre>public sealed record Settlement(Point Cell);
+
+private readonly Dictionary&lt;Point, Settlement&gt; _settlements = [];
+
+public bool TryPlace(Point cell)
+{
+  if (!grid.IsValidGridPosition(cell)) return false;
+  return _settlements.TryAdd(cell, new Settlement(cell));
+}</pre>
+    <p>The dictionary key expresses the one-settlement-per-cell rule. When the game later needs multiple layers (for example, a road plus a city), introduce separate occupancy rules deliberately rather than weakening this invariant accidentally.</p>
+
+    <h2>Test matrix</h2>
+    <table>
+      <thead>
+        <tr><th>Behaviour</th><th>Lowest useful test</th><th>Assertion</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Valid empty tile</td><td><code>SettlementPlacementSystem</code> unit test</td><td><code>TryPlace</code> is true and the cell is stored.</td></tr>
+        <tr><td>Duplicate tile</td><td><code>SettlementPlacementSystem</code> unit test</td><td>Second <code>TryPlace</code> is false; exactly one settlement remains.</td></tr>
+        <tr><td>Off-grid tile</td><td><code>SettlementPlacementSystem</code> unit test</td><td><code>TryPlace</code> is false; no state changes.</td></tr>
+        <tr><td>Held button</td><td><code>InputReader</code> unit test</td><td>Pressed edge emits once; subsequent held frame emits none.</td></tr>
+        <tr><td>Zoomed/panned click</td><td>placement-controller unit test</td><td>A known screen point places state in the expected grid cell.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Checklist when it fails</h2>
+    <ul class="steps">
+      <li>Is placement resolved with the same <code>camera.Transform</code> used by drawing?</li>
+      <li>Is the click an edge (<code>down &amp;&amp; !wasDown</code>) rather than a held state?</li>
+      <li>Does the world system own bounds and occupancy validation?</li>
+      <li>Does the marker derive its rectangle from <code>GridToWorldRect(settlement.Cell)</code>?</li>
+      <li>Is the marker drawn within the transformed world sprite-batch block, not in screen-space UI?</li>
+    </ul>
+
+    <footer>
+      <p>Companion to <a href="../lessons/0009-place-first-settlement-on-a-tile.html">Lesson 9 — Place a settlement on a tile</a>. Prerequisite reference: <a href="coordinate-systems-and-transforms.html">Coordinate systems and transforms</a>.</p>
+      <p>Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a> and <a href="https://gameprogrammingpatterns.com/command.html"><em>Game Programming Patterns</em>: Command</a>. Ask the agent if you want to extend this safely to selection, terrain restrictions, or multiple occupancy layers.</p>
+    </footer>
+  </main>
+</body>
+</html>

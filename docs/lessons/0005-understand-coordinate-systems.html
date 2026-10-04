@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 5 — Understand coordinate systems</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 5 · 25 minutes · Theory</p>
+    <h1>Lesson 5 — Understand coordinate systems</h1>
+    <p>In Lesson 4 you converted a mouse position into a grid cell with a couple of lines of inline math. That worked because your grid still lives in screen space. The moment you add a camera that can pan and zoom, "where the mouse is" and "which tile that is" stop being the same question. This lesson gives you the vocabulary to keep them straight — before you write another line of conversion code.</p>
+
+    <div class="series">
+      <strong>Coordinate systems series (5 of 6).</strong>
+      This is the knowledge lesson. It is deliberately theory-only: no new subject code.
+      <a href="0004-highlight-the-hovered-cell.html">Lesson 4</a> was the quick inline version;
+      <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a> turns this theory into reusable utilities.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#read">Read this first</a></li>
+        <li><a href="#spaces">The coordinate spaces you have</a></li>
+        <li><a href="#transforms">How a transform moves between them</a></li>
+        <li><a href="#chain">The conversion chain</a></li>
+        <li><a href="#pitfalls">Traps worth knowing before you code</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="read">Read this first</h2>
+    <p>Your primary source for this lesson is the <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms reference</a>. Read it once, end to end — it is the compressed, printable version of everything below and the document you will return to later. This lesson walks you through it and checks that it stuck.</p>
+
+    <h2 id="spaces">The coordinate spaces you have</h2>
+    <p>A 2D strategy game juggles several coordinate spaces at once. Each answers a different question, and confusion between them is the source of most "why is my click in the wrong place" bugs.</p>
+    <dl>
+      <dt><strong>Screen / input space</strong> — pixels, origin at the window's top-left</dt>
+      <dd>Where the mouse is. <code>Mouse.GetState()</code> reports here. Your grid in Lessons 3–4 was drawn directly in this space, which is why the math was so short.</dd>
+
+      <dt><strong>World space</strong> — game units, an arbitrary fixed origin</dt>
+      <dd>Where things <em>are</em> in the game, independent of the camera. A unit standing at world <code>(2000, 1500)</code> stays there whether the camera looks at it or not.</dd>
+
+      <dt><strong>Grid space</strong> — whole cells, origin at cell (0, 0)</dt>
+      <dd>Which tile. Pathfinding, tile selection, and spatial queries all work here. Grid space is world space divided by the cell size, offset by the grid's origin.</dd>
+
+      <dt><strong>Local / entity space</strong> — relative to a parent</dt>
+      <dd>Used later for sprite anchors and child objects. You don't need it yet, but the reference lists it so the picture is complete.</dd>
+    </dl>
+    <p>The key mental shift: <em>screen space and world space are only the same while the camera is the identity transform.</em> Right now they are. As soon as you can pan or zoom, they diverge, and you must convert deliberately.</p>
+
+    <h2 id="transforms">How a transform moves between them</h2>
+    <p>A <strong>transform matrix</strong> encodes a translation (pan) and a scale (zoom) in one object. MonoGame's <code>SpriteBatch.Begin(transformMatrix: …)</code> applies it to everything drawn in that batch, which is how a camera "moves the world" without touching any entity's stored position.</p>
+    <ul class="steps">
+      <li><strong>World → Screen:</strong> multiply a world position by the camera transform. This is what the GPU effectively does to every sprite when you pass the matrix to <code>Begin</code>.</li>
+      <li><strong>Screen → World:</strong> multiply a screen position by the <em>inverse</em> of the camera transform. Use <code>Matrix.Invert</code> — not <code>Matrix.Transpose</code>, which only inverts pure rotations, not scale or translation.</li>
+    </ul>
+    <p><strong>Order matters.</strong> Matrix multiplication is not commutative. For a camera you build the transform as scale first, then translate:</p>
+    <pre>// Camera transform: zoom, then position the world under the view
+var transform = Matrix.CreateScale(Zoom)
+              * Matrix.CreateTranslation(Position.X, Position.Y, 0);</pre>
+    <p>Swap the two factors and the zoom would pivot around the wrong point. The reference's <a href="../reference/coordinate-systems-and-transforms.html">Combining Transforms</a> section explains why.</p>
+
+    <h2 id="chain">The conversion chain</h2>
+    <p>Every conversion you will ever need is a walk along this chain. You never jump spaces directly; you compose one step at a time:</p>
+    <pre>Screen  ⇄  World  ⇄  Grid
+   (camera)   (grid origin + cell size)</pre>
+    <ul class="steps">
+      <li><strong>World → Grid:</strong> subtract the grid origin, divide by cell size, then floor to a whole cell.</li>
+      <li><strong>Grid → World:</strong> multiply the cell by cell size, add the grid origin (and half a cell if you want the centre).</li>
+      <li><strong>Screen → Grid:</strong> there is no shortcut — go Screen → World → Grid.</li>
+      <li><strong>Grid → Screen:</strong> likewise Grid → World → Screen.</li>
+    </ul>
+    <p>This is why Lesson 4's inline math only worked in screen space: with no camera, the Screen ⇄ World step was invisible, so "screen" and "world" were the same numbers. Lesson 6 makes that step real.</p>
+
+    <h2 id="pitfalls">Traps worth knowing before you code</h2>
+    <dl>
+      <dt><strong>Rounding toward zero breaks negatives</strong></dt>
+      <dd>C#'s <code>(int)</code> cast truncates toward zero, so a world position just left of the origin (say <code>-1</code>) casts to cell <code>0</code> instead of <code>-1</code>. Two different world positions collapse onto the same cell across the origin line. Use <code>Math.Floor</code>, which always rounds down, so the mapping stays consistent for negative coordinates. Lesson 6 uses <code>Math.Floor</code> for exactly this reason.</dd>
+
+      <dt><strong>Invert, don't transpose</strong></dt>
+      <dd>To go Screen → World you need the true inverse of the camera transform. <code>Matrix.Transpose</code> is a cheaper shortcut that is only correct for rotation-only matrices. Your camera has scale and translation, so use <code>Matrix.Invert</code>.</dd>
+
+      <dt><strong>Always bounds-check after converting</strong></dt>
+      <dd>Screen corners can map to negative or out-of-range grid cells. Validate against <code>[0, GridSizeX)</code> and <code>[0, GridSizeY)</code> before using a cell as an array index.</dd>
+
+      <dt><strong>Float for world, int for grid</strong></dt>
+      <dd>World positions are <code>Vector2</code> (sub-pixel precision matters for smooth movement). Grid coordinates are whole cells — a <code>Point</code> — once you have floored them.</dd>
+    </dl>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer all three <strong>before</strong> opening the answers. Say them aloud or write them down — effortful recall is what makes this stick.</p>
+    <ol class="steps">
+      <li>To convert a mouse position to a tile, which two spaces do you pass through, in order?</li>
+      <li>Which method inverts a camera transform that has scale and translation?</li>
+      <li>Why use <code>Math.Floor</code> rather than an <code>(int)</code> cast when computing a grid cell?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li>Screen → World → Grid. There is no direct screen-to-grid step; you compose the two conversions.</li>
+        <li><code>Matrix.Invert</code>. <code>Matrix.Transpose</code> only inverts rotation-only matrices, not scale or translation.</li>
+        <li><code>Math.Floor</code> always rounds down, so negative world coordinates map to the correct cell; an <code>(int)</code> cast truncates toward zero and collapses cells across the origin.</li>
+      </ol>
+    </details>
+
+    <h2 id="next">Where this goes next</h2>
+    <p>You now have the vocabulary and the traps. <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a> turns it into code: a static <code>Transforms</code> class, a <code>Camera</code> that owns the view matrix, and convenience methods on your existing <code>Grid</code> — replacing the inline math you wrote in Lesson 4.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0004-highlight-the-hovered-cell.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 4 — Highlight the hovered cell</span>
+      </a>
+      <a class="next" href="0006-build-coordinate-utilities-and-camera.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 6 — Build coordinate utilities and camera</span>
+      </a>
+    </nav>
+
+    <footer>
+      <p>Primary source: <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a> (this workspace), backed by the <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Matrix.html">MonoGame <code>Matrix</code> API</a>. Try the <a href="../reference/coordinate-systems-quiz.html">coordinate systems quiz</a> to test yourself again after a day or two — spacing the recall is what builds lasting memory.</p>
+      <p>Ask me follow-up questions if any of the spaces or the matrix order feels shaky before you start Lesson 6.</p>
+    </footer>
+  </main>
+</body>
+</html>

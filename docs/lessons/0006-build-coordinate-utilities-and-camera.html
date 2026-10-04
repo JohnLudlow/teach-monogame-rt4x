@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 6 — Build coordinate utilities and camera</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 6 · 40 minutes · Refactor</p>
+    <h1>Lesson 6 — Build coordinate utilities and camera</h1>
+    <p>In Lesson 4 you converted a mouse position to a grid cell with a few lines of inline math inside <code>Game1</code>. In Lesson 5 you learned the coordinate spaces and the traps. Now you'll lift that math out of <code>Game1</code> into a small, testable set of classes — a static <code>Transforms</code> utility, a <code>Camera</code> that owns the view matrix, and convenience methods on your existing <code>Grid</code> — so that pointing keeps working even once the camera can pan and zoom.</p>
+
+    <div class="series">
+      <strong>Coordinate systems series (6 of 6).</strong>
+      This is the skill lesson: the refactor that pays off Lessons 4 and 5.
+      It replaces the inline conversion from <a href="0004-highlight-the-hovered-cell.html">Lesson 4</a>
+      with the utilities described in the <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms reference</a>.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#why">Why refactor now</a></li>
+        <li><a href="#plan">The three classes</a></li>
+        <li><a href="#transforms">Step 1 — Transforms utility</a></li>
+        <li><a href="#camera">Step 2 — Camera</a></li>
+        <li><a href="#grid">Step 3 — Grid convenience methods</a></li>
+        <li><a href="#game1">Step 4 — Rewire Game1</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="why">Why refactor now</h2>
+    <p>Your Lesson 4 <code>Update</code> holds the conversion inline:</p>
+    <pre>var localX = mouse.X - gridOriginX;
+var localY = mouse.Y - gridOriginY;
+var column = localX / CellSize;
+var row    = localY / CellSize;</pre>
+    <p>It works, but it has three problems that will bite as the game grows:</p>
+    <ul class="steps">
+      <li><strong>It will be duplicated.</strong> The next feature that needs a cell from a mouse position copies these lines, and now two places must stay in sync.</li>
+      <li><strong>It has no camera.</strong> The math assumes screen space equals world space. That assumption breaks the instant you pan or zoom.</li>
+      <li><strong>It can't be unit-tested.</strong> The logic is trapped inside <code>Game1</code>, which needs a running graphics device.</li>
+    </ul>
+    <p>You'll fix all three by moving the math into classes that don't depend on <code>Game1</code>, matching the "separate concerns" rule from the <a href="../reference/coordinate-systems-and-transforms.html#">reference</a>.</p>
+
+    <h2 id="plan">The three classes</h2>
+    <dl>
+      <dt><strong>Transforms</strong> — static utility</dt>
+      <dd>Pure conversion functions. No state, no dependency on a specific grid or camera instance. Easy to unit-test.</dd>
+      <dt><strong>Camera</strong> — instance class</dt>
+      <dd>Owns <code>Position</code>, <code>Zoom</code>, and the view <code>Transform</code> matrix. Everything Screen ⇄ World goes through it.</dd>
+      <dt><strong>Grid</strong> — your existing class, extended</dt>
+      <dd>Gains convenience methods that wrap <code>Transforms</code> using its own <code>Origin</code> and <code>GridCellSize</code>, plus bounds checking.</dd>
+    </dl>
+
+    <h2 id="transforms">Step 1 — Create the Transforms utility</h2>
+    <p>Create <code>FourxGame.MonoGame.Core/Transforms.cs</code>. These are the conversion-chain steps from Lesson 5, written once:</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core;
+
+public static class Transforms
+{
+    // Screen -> World: invert the camera transform
+    public static Vector2 ScreenToWorld(Vector2 screenPos, Matrix cameraTransform)
+    {
+        Matrix.Invert(ref cameraTransform, out var inverse);
+        return Vector2.Transform(screenPos, inverse);
+    }
+
+    // World -> Screen: apply the camera transform
+    public static Vector2 WorldToScreen(Vector2 worldPos, Matrix cameraTransform)
+        =&gt; Vector2.Transform(worldPos, cameraTransform);
+
+    // World -> Grid: subtract origin, divide by cell size, floor to a whole cell
+    public static Point WorldToGrid(Vector2 worldPos, Vector2 origin, int gridCellSize)
+    {
+        var localX = worldPos.X - origin.X;
+        var localY = worldPos.Y - origin.Y;
+        return new Point(
+            (int)Math.Floor(localX / gridCellSize),
+            (int)Math.Floor(localY / gridCellSize)
+        );
+    }
+
+    // Grid -> World: multiply by cell size, add origin (returns the cell centre)
+    public static Vector2 GridToWorld(Point gridPos, Vector2 origin, int gridCellSize)
+        =&gt; new(
+            origin.X + gridPos.X * gridCellSize + gridCellSize / 2f,
+            origin.Y + gridPos.Y * gridCellSize + gridCellSize / 2f
+        );
+}</pre>
+    <p><strong>Why <code>Math.Floor</code>:</strong> as Lesson 5 warned, an <code>(int)</code> cast truncates toward zero, so a world position at <code>-1</code> would land in cell <code>0</code> instead of <code>-1</code>. <code>Math.Floor</code> keeps negative coordinates mapping to the correct cell.</p>
+
+    <h2 id="camera">Step 2 — Create the Camera</h2>
+    <p>Create <code>FourxGame.MonoGame.Core/Camera.cs</code>. The <code>Transform</code> is computed lazily, so it is rebuilt only when <code>Position</code> or <code>Zoom</code> actually changes:</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core;
+
+public class Camera
+{
+    private Vector2 _position = Vector2.Zero;
+    private float _zoom = 1.0f;
+    private Matrix _transform;
+    private bool _dirty = true;
+
+    public Vector2 Position
+    {
+        get =&gt; _position;
+        set { _position = value; _dirty = true; }
+    }
+
+    public float Zoom
+    {
+        get =&gt; _zoom;
+        // clamp so the view can't invert or zoom to nothing
+        set { _zoom = Math.Clamp(value, 0.1f, 5.0f); _dirty = true; }
+    }
+
+    public Matrix Transform
+    {
+        get
+        {
+            if (_dirty)
+            {
+                // scale first (zoom), then translate (pan) — order matters
+                _transform = Matrix.CreateScale(_zoom)
+                           * Matrix.CreateTranslation(_position.X, _position.Y, 0);
+                _dirty = false;
+            }
+            return _transform;
+        }
+    }
+
+    public void Pan(Vector2 delta) =&gt; Position += delta;
+}</pre>
+    <p><strong>Design note:</strong> because <code>Transform</code> is a lazy getter, callers never have to remember to "rebuild" the matrix after moving the camera — the setters mark it dirty and the getter recomputes on demand. Note the matrix order matches Lesson 5: <code>CreateScale</code> then <code>CreateTranslation</code>.</p>
+
+    <h2 id="grid">Step 3 — Add Grid convenience methods</h2>
+    <p>Your existing <code>Grid</code> already has <code>Origin</code>, <code>GridCellSize</code>, <code>GridSizeX</code>, and <code>GridSizeY</code>. Add methods that wrap <code>Transforms</code> and add bounds checking. Update <code>FourxGame.MonoGame.Core/Entities/Grid.cs</code>:</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Entities;
+
+public class Grid
+{
+    public Vector2 Origin { get; set; } = Vector2.Zero;
+    public required int GridCellSize { get; set; }
+    public required int GridSizeX { get; set; }
+    public required int GridSizeY { get; set; }
+
+    public Point WorldToGrid(Vector2 worldPos)
+        =&gt; Transforms.WorldToGrid(worldPos, Origin, GridCellSize);
+
+    public Vector2 GridToWorld(Point gridPos)
+        =&gt; Transforms.GridToWorld(gridPos, Origin, GridCellSize);
+
+    public bool IsValidGridPosition(Point gridPos)
+        =&gt; gridPos.X &gt;= 0 &amp;&amp; gridPos.X &lt; GridSizeX
+        &amp;&amp; gridPos.Y &gt;= 0 &amp;&amp; gridPos.Y &lt; GridSizeY;
+
+    // Screen -> World -> Grid, returning null when the click is off the grid
+    public Point? ScreenToGrid(Vector2 screenPos, Matrix cameraTransform)
+    {
+        var world = Transforms.ScreenToWorld(screenPos, cameraTransform);
+        var gridPos = WorldToGrid(world);
+        return IsValidGridPosition(gridPos) ? gridPos : null;
+    }
+}</pre>
+    <p><strong>Design note:</strong> <code>ScreenToGrid</code> returns <code>Point?</code> — <code>null</code> means "off the grid". That folds the bounds check from Lesson 5 into the conversion, so callers can't forget it.</p>
+
+    <h2 id="game1">Step 4 — Rewire Game1</h2>
+    <p>Now delete the inline math from Lesson 4 and route the hovered cell through the new classes. The whole conversion becomes a single call:</p>
+    <pre>using FourxGame.MonoGame.Core;
+using FourxGame.MonoGame.Core.Entities;
+
+private Grid _grid = null!;
+private Camera _camera = null!;
+private Point? _hoveredCell;
+
+protected override void Initialize()
+{
+    _grid = new Grid
+    {
+        GridCellSize = 48,
+        GridSizeX = 12,
+        GridSizeY = 8,
+        Origin = Vector2.Zero
+    };
+    _camera = new Camera();
+    base.Initialize();
+}
+
+protected override void Update(GameTime gameTime)
+{
+    var mouse = Mouse.GetState();
+    var mousePos = new Vector2(mouse.X, mouse.Y);
+
+    // replaces the inline localX/localY math from Lesson 4
+    _hoveredCell = _grid.ScreenToGrid(mousePos, _camera.Transform);
+
+    base.Update(gameTime);
+}
+
+protected override void Draw(GameTime gameTime)
+{
+    GraphicsDevice.Clear(Color.CornflowerBlue);
+
+    // pass the camera transform so the world is drawn through the view
+    _spriteBatch.Begin(transformMatrix: _camera.Transform);
+    DrawGrid();
+    DrawHoveredCellHighlight();   // uses _hoveredCell as before
+    _spriteBatch.End();
+
+    base.Draw(gameTime);
+}</pre>
+    <p>Keep the same grid dimensions you chose in Lessons 3–4 so the view doesn't jump. The behaviour should be identical — but the conversion now lives in one testable place, and it already understands the camera.</p>
+
+    <h2 id="feedback">Fast feedback</h2>
+    <pre>dotnet build monogame-rt4x.slnx
+dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</pre>
+    <p>Success looks like:</p>
+    <ul class="steps">
+      <li>The grid renders exactly where it did in Lesson 4.</li>
+      <li>The hovered-cell highlight still tracks the mouse cell-by-cell.</li>
+      <li>Moving the cursor off the grid clears the highlight (thanks to the <code>Point?</code> return).</li>
+      <li>No inline coordinate math remains in <code>Game1</code>.</li>
+    </ul>
+    <p>Because <code>Transforms</code> and <code>Grid</code> no longer depend on <code>Game1</code>, you can now unit-test them in <code>FourxGame.MonoGame.UnitTests</code>: assert that <code>WorldToGrid(GridToWorld(cell))</code> round-trips back to the same cell.</p>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer all three <strong>before</strong> opening the answers:</p>
+    <ol class="steps">
+      <li>Which class owns the view matrix, and which class turns a world position into a cell?</li>
+      <li>Why does <code>Camera.Transform</code> use a dirty flag instead of rebuilding every frame?</li>
+      <li>What does <code>Grid.ScreenToGrid</code> return when the mouse is outside the grid, and why is that useful?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li><code>Camera</code> owns the view matrix; <code>Grid</code> (via <code>Transforms.WorldToGrid</code>) turns a world position into a cell.</li>
+        <li>The matrix only changes when <code>Position</code> or <code>Zoom</code> changes; the dirty flag avoids recomputing it on frames where nothing moved.</li>
+        <li>It returns <code>null</code>, which forces callers to handle "off the grid" and prevents out-of-bounds array access.</li>
+      </ol>
+    </details>
+
+    <h2 id="next">Where this goes next</h2>
+    <p>You now have a camera and a clean conversion layer. The obvious next win is <strong>camera controls</strong>: map WASD or arrow keys to <code>Camera.Pan</code> and the mouse wheel to <code>Camera.Zoom</code>, then confirm the hovered-cell highlight still lands on the right tile while the view moves. That is the real payoff of doing the refactor — pointing keeps working through pan and zoom for free.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0005-understand-coordinate-systems.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 5 — Understand coordinate systems</span>
+      </a>
+      <a class="next" href="0007-camera-controls-pan-and-zoom.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 7 — Camera controls: pan and zoom</span>
+      </a>
+    </nav>
+
+    <footer>
+      <p>Primary source: <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a> (this workspace), backed by the <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Matrix.html">MonoGame <code>Matrix</code> API</a> and the <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html">MonoGame <code>SpriteBatch</code> API</a>.</p>
+      <p>Ask me follow-up questions if a build error appears or if you want help writing the round-trip unit tests.</p>
+    </footer>
+  </main>
+</body>
+</html>

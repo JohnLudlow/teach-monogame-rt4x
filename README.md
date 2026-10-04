@@ -57,6 +57,31 @@ Some givens:
 
 - Getting the game running
 - Generating terrain
+- Managing game speed
+  - Representing hills and mountains
+  - Representing terrain types such as grass, forests, ocean, deserts and tundra, as well as fantasy terrains
+    such as ashlands and hellscapes
+- Camera management
+- User interface
+  - UI styling
+  - Collapsing and scrolling panels
+  - Displaying rich information such as images / icons embedded in text
+  - Floating and cascading panels and tooltips
+  - Animated UI elements
+- Audio
+  - Dynamically playing sound effects based on game events or UI interaction
+  - Positional audio (playing sound effects based on camera position in relation to the sound effect source)
+  - Background music, including dynamically generating background music
+- Very basic animation
+- Shaders
+  - Lighting effects
+  - Magic effects
+  - Fire and weather effects
+- Rival, unit, character and advisor AI (not LLM, but using traditional techniques like Goal Oriented Action Planning)
+- Managing units
+- Managing cities
+- Managing factions and diplomacy
+- Pathfinding
 
 ### Any reference games to think about?
 

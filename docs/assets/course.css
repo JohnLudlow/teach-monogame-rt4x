@@ -1,0 +1,147 @@
+:root {
+  color-scheme: light;
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.55;
+  color: #20251f;
+  background: #f7f4eb;
+}
+
+body { margin: 0; }
+main { max-width: 48rem; margin: 0 auto; padding: 3rem 1.5rem 4rem; }
+h1, h2 { color: #294238; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 6vw, 3.3rem); margin-bottom: .25rem; }
+h2 { margin-top: 2.4rem; }
+a { color: #965a25; }
+.kicker { color: #6a756c; font-family: system-ui, sans-serif; font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; }
+.callout { border-left: .35rem solid #739177; background: #edf2e9; padding: .8rem 1rem; }
+.steps { padding-left: 1.4rem; }
+.steps li { margin: .8rem 0; }
+code, pre { font-family: Consolas, "Courier New", monospace; }
+pre { overflow-x: auto; background: #20251f; color: #f7f4eb; padding: 1rem; }
+button { background: #294238; border: 0; border-radius: .2rem; color: white; cursor: pointer; font: inherit; padding: .55rem .8rem; }
+.feedback { font-weight: bold; min-height: 1.5em; }
+footer { border-top: 1px solid #b9c1b6; color: #566058; margin-top: 3rem; padding-top: 1rem; }
+
+/* --- Shared lesson chrome: table of contents + prev/next navigation --- */
+
+/* Table of contents box, placed just under the lesson intro */
+.toc {
+  background: #edf2e9;
+  border: 1px solid #b9c1b6;
+  border-radius: .3rem;
+  padding: 1rem 1.25rem;
+  margin: 2rem 0;
+  font-family: system-ui, sans-serif;
+  font-size: .95rem;
+}
+.toc h2 {
+  margin: 0 0 .5rem;
+  font-size: 1rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #6a756c;
+}
+.toc ol { margin: 0; padding-left: 1.4rem; }
+.toc li { margin: .3rem 0; }
+.toc a { text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+
+/* A subtle offset so anchor jumps don't hide headings under the top edge */
+h2[id], h3[id] { scroll-margin-top: 1rem; }
+
+/* Series map: shows where this lesson sits in the coordinate-systems arc */
+.series {
+  font-family: system-ui, sans-serif;
+  font-size: .9rem;
+  color: #566058;
+  background: #f0ede2;
+  border-left: .35rem solid #965a25;
+  padding: .6rem 1rem;
+  margin: 1.5rem 0;
+}
+.series strong { color: #294238; }
+
+/* Prev / next navigation, used at the foot of every lesson */
+.lesson-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: .95rem;
+}
+.lesson-nav a {
+  flex: 1 1 0;
+  text-decoration: none;
+  border: 1px solid #b9c1b6;
+  border-radius: .3rem;
+  padding: .7rem .9rem;
+  background: #f0ede2;
+}
+.lesson-nav a:hover { background: #edf2e9; }
+.lesson-nav .prev { text-align: left; }
+.lesson-nav .next { text-align: right; }
+.lesson-nav .disabled {
+  visibility: hidden;
+}
+.lesson-nav .nav-label {
+  display: block;
+  font-size: .75rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #6a756c;
+}
+.lesson-nav .nav-title { color: #965a25; font-weight: bold; }
+
+/* "Back to course index" link, sits above the prev/next row */
+.course-home {
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: .9rem;
+  margin-top: 2.5rem;
+}
+.course-home a { text-decoration: none; }
+.course-home a:hover { text-decoration: underline; }
+.course-home + .lesson-nav { margin-top: 1rem; }
+
+/* --- Course index page --- */
+.course-intro { font-size: 1.05rem; }
+.phase {
+  font-family: system-ui, sans-serif;
+  font-size: .8rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #6a756c;
+  margin: 2.4rem 0 .6rem;
+  border-bottom: 1px solid #b9c1b6;
+  padding-bottom: .3rem;
+}
+.lesson-list { list-style: none; margin: 0; padding: 0; }
+.lesson-card {
+  display: block;
+  border: 1px solid #b9c1b6;
+  border-radius: .35rem;
+  background: #f0ede2;
+  padding: .9rem 1.1rem;
+  margin: .7rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+.lesson-card:hover { background: #edf2e9; }
+.lesson-card .card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+.lesson-card .card-title { color: #294238; font-weight: bold; font-size: 1.1rem; }
+.lesson-card .card-meta {
+  font-family: system-ui, sans-serif;
+  font-size: .8rem;
+  color: #6a756c;
+  white-space: nowrap;
+}
+.lesson-card .card-desc { margin: .4rem 0 0; color: #40483f; font-size: .98rem; }
+.lesson-card.upcoming { opacity: .6; border-style: dashed; }
+.ref-list { padding-left: 1.4rem; }
+.ref-list li { margin: .5rem 0; }

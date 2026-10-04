@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coordinate System Quiz</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Quiz · Coordinate Systems</p>
+    <h1>Check your understanding</h1>
+    <p>Answer each question before revealing the answer. This quiz tests your understanding of coordinate systems and transforms.</p>
+
+    <h2>Question 1</h2>
+    <p>In a 2D top-down game, which coordinate system would you use for each purpose?</p>
+    <ul class="quiz">
+      <li>Mouse cursor position</li>
+      <li>Unit position in the game world</li>
+      <li>Grid tile index</li>
+      <li>UI button placement</li>
+    </ul>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ul>
+        <li><strong>Mouse cursor position:</strong> Input / Mouse coordinates (pixels from window top-left)</li>
+        <li><strong>Unit position:</strong> World coordinates (game units from world origin)</li>
+        <li><strong>Grid tile index:</strong> Grid coordinates (cell indices from grid origin)</li>
+        <li><strong>UI button placement:</strong> Screen / Viewport coordinates (pixels from render target top-left)</li>
+      </ul>
+    </details>
+
+    <h2>Question 2</h2>
+    <p>When converting from Screen to Grid coordinates, what is the correct order of operations?</p>
+    <ul class="quiz">
+      <li>Screen → Grid → World</li>
+      <li>Screen → World → Grid</li>
+      <li>Screen → Grid (direct division)</li>
+      <li>Screen → World (direct addition)</li>
+    </ul>
+    <details class="callout">
+      <summary><strong>Show answer</strong></summary>
+      <p><strong>Screen → World → Grid</strong> is correct. Screen coordinates must first be converted to world coordinates (applying camera transform), then to grid coordinates (dividing by cell size).</p>
+    </details>
+
+    <h2>Question 3</h2>
+    <p>For a camera that pans and zooms, what is the correct order for combining transform matrices?</p>
+    <ul class="quiz">
+      <li>Scale then Translate (zoom, then pan)</li>
+      <li>Translate then Scale (pan, then zoom)</li>
+      <li>Scale only</li>
+      <li>Translate only</li>
+    </ul>
+    <details class="callout">
+      <summary><strong>Show answer</strong></summary>
+      <p><strong>Scale then Translate</strong> is correct for camera transforms. If you translate first, the scaling will also scale the translation amount. Scaling first centers the zoom on the world origin.</p>
+    </details>
+
+    <h2>Question 4</h2>
+    <p>Why must you invert the camera transform when converting Screen to World coordinates?</p>
+    <ul class="quiz">
+      <li>Camera transform moves World → Screen</li>
+      <li>Camera transform moves Screen → World</li>
+      <li>Inversion is not required</li>
+      <li>Only for rotation transforms</li>
+    </ul>
+    <details class="callout">
+      <summary><strong>Show answer</strong></summary>
+      <p><strong>Camera transform moves World → Screen</strong>. The camera transform applies translation and scaling to convert world positions to screen positions. To go backwards (screen → world), you need the inverse transform.</p>
+    </details>
+
+    <h2>Question 5</h2>
+    <p>After converting screen coordinates to grid coordinates, why is bounds checking important?</p>
+    <ul class="quiz">
+      <li>Grid coordinates can be negative or exceed grid dimensions</li>
+      <li>Grid coordinates always fit in integers</li>
+      <li>Bounds checking is only for rendering</li>
+      <li>Grid coordinates are already validated</li>
+    </ul>
+    <details class="callout">
+      <summary><strong>Show answer</strong></summary>
+      <p><strong>Grid coordinates can be negative or exceed grid dimensions</strong>. Screen corners, especially with camera offsets, can map to locations outside the valid grid area. Always validate before accessing grid data.</p>
+    </details>
+
+    <footer>
+      <p>Score: <span id="score">0</span> / 5</p>
+      <p><strong>Tip:</strong> If you missed any answers, revisit the <a href="coordinate-systems-and-transforms.html">Coordinate Systems and Transforms reference</a> before implementing.</p>
+    </footer>
+  </main>
+
+  <script>
+    // Simple quiz scoring
+    document.querySelectorAll('details').forEach((details, index) => {
+      details.addEventListener('toggle', () => {
+        if (details.open) {
+          // Mark this question as viewed
+          details.dataset.viewed = 'true';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

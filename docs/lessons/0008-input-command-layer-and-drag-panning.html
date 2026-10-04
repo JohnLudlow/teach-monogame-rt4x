@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 8 — An input command layer (and drag-panning)</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 8 · 45 minutes · Architecture</p>
+    <h1>Lesson 8 — An input command layer (and drag-panning)</h1>
+    <p>In Lesson 7 you read the keyboard and mouse directly inside <code>Game1.Update</code> and mutated the camera on the spot. That works, but it hard-wires <em>which device</em> does <em>what</em> into the game loop. This lesson lifts input out of <code>Game1</code> — the same move you made for coordinate math in Lesson 6 — into a small command layer: devices produce device-agnostic <strong>commands</strong>, and a <code>CameraController</code> applies them. Adding middle-mouse drag-panning then costs almost nothing, because a drag just emits the same <code>Pan</code> command a key does.</p>
+
+    <div class="series">
+      <strong>Architecture (8 of the course so far).</strong>
+      This reframes Lesson 7's inline input as the intentional "before", exactly as
+      <a href="0004-highlight-the-hovered-cell.html">Lesson 4</a> fed
+      <a href="0006-build-coordinate-utilities-and-camera.html">Lesson 6</a>.
+      See the <a href="../index.html">course index</a> for the whole arc.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#why">Why a command layer</a></li>
+        <li><a href="#shape">The shape: commands, bindings, reader, controller</a></li>
+        <li><a href="#commands">Step 1 — InputCommand + InputBindings</a></li>
+        <li><a href="#reader">Step 2 — InputReader produces commands</a></li>
+        <li><a href="#drag">Step 3 — Add middle-mouse drag-panning</a></li>
+        <li><a href="#controller">Step 4 — CameraController applies commands</a></li>
+        <li><a href="#game1">Step 5 — Rewire Game1</a></li>
+        <li><a href="#tests">Testing the seam</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+        <li><a href="#next">Where this goes next</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="why">Why a command layer</h2>
+    <p>Lesson 7's <code>Update</code> answers "what does the D key do?" with "mutate the camera, here, now". That couples three separate concerns: <em>which device</em> was used, <em>what it means</em>, and <em>how the camera responds</em>. Untangling them buys you:</p>
+    <ul class="steps">
+      <li><strong>Rebinding.</strong> If a key is just one way to <em>produce</em> a <code>Pan</code> command, then a mouse drag, a gamepad stick, or a remapped key can all produce the same command — without touching the camera code.</li>
+      <li><strong>Testability.</strong> Command production becomes a pure function of (input state, previous state, bindings). You can feed it two <code>MouseState</code>s and assert the commands, with no graphics device — unlike Lesson 7's inline input, which couldn't be unit-tested at all.</li>
+      <li><strong>Future reach.</strong> The same command stream can later come from AI, a replay file, or the network. The camera doesn't care what produced a <code>Pan</code>.</li>
+    </ul>
+    <p>The cost is a few small types. That is a real tradeoff — for a throwaway prototype it would be over-engineering. You're doing it because you named concrete future needs (rebinding, input config) that justify the seam now.</p>
+
+    <h2 id="shape">The shape: commands, bindings, reader, controller</h2>
+    <p>Four pieces, split by their ECS-style role — data versus behaviour:</p>
+    <dl>
+      <dt><strong>InputCommand</strong> (command — <code>Core/Commands</code>)</dt>
+      <dd>A device-agnostic intent. A small record hierarchy: <code>PanCommand(Vector2 WorldDelta)</code> and <code>ZoomCommand(float Factor, Vector2 FocusScreen)</code>.</dd>
+      <dt><strong>InputBindings</strong> (data — <code>Core/Components/Input</code>)</dt>
+      <dd>Which device inputs mean what: pan keys, pan speed, the drag button, zoom step. The rebindable part — swap the instance, behaviour changes, no logic edits.</dd>
+      <dt><strong>InputReader</strong> (behaviour — <code>Core/Systems/Input</code>)</dt>
+      <dd>Reads keyboard/mouse + previous frame + <code>dt</code> + bindings, and <em>produces</em> a list of <code>InputCommand</code>s. Holds per-frame state (previous scroll value, drag anchor).</dd>
+      <dt><strong>CameraController</strong> (behaviour — <code>Core/Systems/Input</code>)</dt>
+      <dd>Applies each command to the <code>Camera</code>. Keeps <code>Camera</code> a pure data/transform holder (good for ECS: data separate from the system that acts on it).</dd>
+    </dl>
+    <div class="callout">
+      <h3>A note on the folders</h3>
+      <p>The layout separates types by ECS-style role: <code>Core/Entities</code> (identities like <code>Camera</code>), <code>Core/Systems</code> (behaviour), <code>Core/Components</code> (data attached to entities), and <code>Core/Commands</code> (transient intents). <code>InputCommand</code> is a command, so it lives in <code>Core/Commands</code>, not with the components. <code>InputBindings</code> is config data, grouped under <code>Components/Input</code> as a data-shaped type until real components are formalised.</p>
+    </div>
+
+    <h2 id="commands">Step 1 — InputCommand + InputBindings</h2>
+    <p>Create <code>Core/Commands/InputCommand.cs</code>. A sealed record hierarchy models the fixed set of intents, and pattern-matching in the controller stays exhaustive:</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Commands;
+
+public abstract record InputCommand;
+
+/// A request to move the camera by a world-space delta.
+public sealed record PanCommand(Vector2 WorldDelta) : InputCommand;
+
+/// A request to multiply zoom by Factor, keeping FocusScreen fixed on screen.
+public sealed record ZoomCommand(float Factor, Vector2 FocusScreen) : InputCommand;</pre>
+    <p>Then <code>Core/Components/Input/InputBindings.cs</code>. Keep it plain data with sensible defaults; every value here is a candidate for a future config file:</p>
+    <pre>using Microsoft.Xna.Framework.Input;
+
+namespace FourxGame.MonoGame.Core.Components.Input;
+
+public sealed class InputBindings
+{
+    public Keys PanUp { get; init; } = Keys.W;
+    public Keys PanDown { get; init; } = Keys.S;
+    public Keys PanLeft { get; init; } = Keys.A;
+    public Keys PanRight { get; init; } = Keys.D;
+
+    public float PanSpeed { get; init; } = 400f;   // world units / second
+    public float ZoomStep { get; init; } = 0.1f;   // fraction per wheel notch
+
+    // Which mouse button grabs the world to drag-pan.
+    public DragButton DragPanButton { get; init; } = DragButton.Middle;
+}
+
+public enum DragButton { None, Left, Middle, Right }</pre>
+    <p>Referencing the drag button through <code>InputBindings</code> (not a hard-coded <code>MiddleButton</code>) is what makes it configurable later — a data change, not a code change, exactly as you asked.</p>
+
+    <h2 id="reader">Step 2 — InputReader produces commands</h2>
+    <p>Create <code>Core/Systems/Input/InputReader.cs</code>. It turns raw device state into commands. Keyboard panning is the frame-rate-independent logic from Lesson 7, now emitting a <code>PanCommand</code> instead of calling the camera. Note the reader takes the current keyboard/mouse state and <code>dt</code> as parameters — it does not call <code>Keyboard.GetState()</code> itself, so it stays testable.</p>
+    <pre>using System.Collections.Generic;
+using FourxGame.MonoGame.Core.Commands;
+using FourxGame.MonoGame.Core.Components.Input;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
+
+namespace FourxGame.MonoGame.Core.Systems.Input;
+
+public sealed class InputReader(InputBindings bindings)
+{
+    private int _previousScroll;
+    private Point? _dragAnchor;   // screen position where the current drag began
+
+    public IReadOnlyList&lt;InputCommand&gt; Produce(
+        KeyboardState keyboard, MouseState mouse, float zoom, float dt)
+    {
+        var commands = new List&lt;InputCommand&gt;();
+
+        // --- keyboard pan (world units/second, normalised so diagonals aren't faster) ---
+        var pan = Vector2.Zero;
+        if (keyboard.IsKeyDown(bindings.PanLeft))  pan.X += 1;
+        if (keyboard.IsKeyDown(bindings.PanRight)) pan.X -= 1;
+        if (keyboard.IsKeyDown(bindings.PanUp))    pan.Y += 1;
+        if (keyboard.IsKeyDown(bindings.PanDown))  pan.Y -= 1;
+        if (pan != Vector2.Zero)
+        {
+            pan.Normalize();
+            commands.Add(new PanCommand(pan * bindings.PanSpeed * dt));
+        }
+
+        // --- wheel zoom (ScrollWheelValue is cumulative; take the delta) ---
+        var scrollDelta = mouse.ScrollWheelValue - _previousScroll;
+        _previousScroll = mouse.ScrollWheelValue;
+        if (scrollDelta != 0)
+        {
+            var factor = 1f + (scrollDelta / 120f) * bindings.ZoomStep;
+            commands.Add(new ZoomCommand(factor, new Vector2(mouse.X, mouse.Y)));
+        }
+
+        // --- Step 3 adds drag-panning here ---
+
+        return commands;
+    }
+}</pre>
+    <p>Passing <code>zoom</code> in looks unused so far — Step 3 needs it for the drag math. Leave the parameter in now so the signature is stable.</p>
+
+    <h2 id="drag">Step 3 — Add middle-mouse drag-panning</h2>
+    <p>Drag-panning: while the bound button is held, moving the mouse grabs the world and slides it. The subtlety — the same "keep the point under the pointer" idea as zoom-to-cursor — is that a screen drag of N pixels must move the world by <code>N / zoom</code> world units, or the grabbed tile slides out from under the cursor when zoomed.</p>
+    <p>Add this where the comment sits in <code>Produce</code>, plus a small helper to read the bound button:</p>
+    <pre>// --- drag pan ---
+var dragDown = IsDragButtonDown(mouse, bindings.DragPanButton);
+var mousePoint = new Point(mouse.X, mouse.Y);
+
+if (dragDown &amp;&amp; _dragAnchor is Point anchor)
+{
+    var screenDelta = mousePoint - anchor;                 // pixels moved this frame
+    if (screenDelta != Point.Zero)
+    {
+        // divide by zoom so the grabbed world point stays under the cursor
+        var worldDelta = new Vector2(screenDelta.X, screenDelta.Y) / zoom;
+        commands.Add(new PanCommand(worldDelta));
+    }
+    _dragAnchor = mousePoint;                               // re-anchor for next frame
+}
+_dragAnchor = dragDown ? mousePoint : null;                // start / clear the drag</pre>
+    <pre>private static bool IsDragButtonDown(MouseState mouse, DragButton button) =&gt; button switch
+{
+    DragButton.Left   =&gt; mouse.LeftButton   == ButtonState.Pressed,
+    DragButton.Middle =&gt; mouse.MiddleButton == ButtonState.Pressed,
+    DragButton.Right  =&gt; mouse.RightButton  == ButtonState.Pressed,
+    _ =&gt; false,
+};</pre>
+    <p>Because drag emits a <code>PanCommand</code> — the very same type the keyboard emits — the camera side needs no new code to support it. That is the whole point of the command layer.</p>
+    <div class="callout">
+      <h3>Sign check</h3>
+      <p>Dragging the mouse right should pull the world right (grab-and-drag feel), so a positive screen delta becomes a positive world delta here — the opposite intent from the keyboard "look right" convention in Lesson 7. Both are valid; they're just different gestures. Decide each deliberately and note it in your bindings.</p>
+    </div>
+
+    <h2 id="controller">Step 4 — CameraController applies commands</h2>
+    <p>Create <code>Core/Systems/Input/CameraController.cs</code>. It executes commands against the camera. The <code>ZoomCommand</code> carries the zoom-toward-point logic from Lesson 7 — using <code>Transforms.ScreenToWorld</code> and <code>Camera.Pan</code>, no new math:</p>
+    <pre>using System.Collections.Generic;
+using FourxGame.MonoGame.Core.Commands;
+using FourxGame.MonoGame.Core.Entities;
+using FourxGame.MonoGame.Core.Utilities;
+using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Systems.Input;
+
+public sealed class CameraController(Camera camera)
+{
+    public void Apply(IReadOnlyList&lt;InputCommand&gt; commands)
+    {
+        foreach (var command in commands)
+        {
+            switch (command)
+            {
+                case PanCommand pan:
+                    camera.Pan(pan.WorldDelta);
+                    break;
+
+                case ZoomCommand zoom:
+                    var before = Transforms.ScreenToWorld(zoom.FocusScreen, camera.Transform);
+                    camera.Zoom *= zoom.Factor;    // Camera clamps [0.1, 5]
+                    var after = Transforms.ScreenToWorld(zoom.FocusScreen, camera.Transform);
+                    camera.Pan(after - before);    // keep the focus point fixed on screen
+                    break;
+            }
+        }
+    }
+}</pre>
+    <p>The <code>switch</code> on the sealed record hierarchy makes the intent explicit and easy to extend: a future <code>SelectCellCommand</code> adds one case, and nothing else changes.</p>
+
+    <h2 id="game1">Step 5 — Rewire Game1</h2>
+    <p>Now <code>Game1</code> owns the reader, controller, and bindings, and its <code>Update</code> shrinks to "read devices → produce commands → apply them". All the input <em>logic</em> has left <code>Game1</code>:</p>
+    <pre>// fields
+private InputReader _input = null!;
+private CameraController _cameraController = null!;
+
+// in Initialize(), after _camera is created:
+_input = new InputReader(new InputBindings());
+_cameraController = new CameraController(_camera);
+
+// Update()
+var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+var commands = _input.Produce(Keyboard.GetState(), Mouse.GetState(), _camera.Zoom, dt);
+_cameraController.Apply(commands);
+
+// picking is unchanged — still one line, still the shared transform:
+_hoveredCell = _grid.ScreenToGrid(new Vector2(Mouse.GetState().X, Mouse.GetState().Y), _camera.Transform);</pre>
+    <p>Reading <code>Mouse.GetState()</code> twice per frame is harmless but slightly wasteful — consider capturing it once into a local and passing it to both. A small tidy, your call.</p>
+
+    <h2 id="tests">Testing the seam</h2>
+    <p>This is the reward for the abstraction: <code>InputReader</code> is now unit-testable without a window. You can construct <code>KeyboardState</code> and <code>MouseState</code> directly (their constructors accept the raw values) and assert the commands produced. Aim for:</p>
+    <ul class="steps">
+      <li>Holding a pan key emits one <code>PanCommand</code> with the expected world delta for a given <code>dt</code>.</li>
+      <li>No input emits no commands.</li>
+      <li>A wheel-value change emits a <code>ZoomCommand</code> with the focus at the mouse position; equal values emit none.</li>
+      <li>With the drag button held and the mouse moved, the emitted <code>PanCommand.WorldDelta</code> equals <code>screenDelta / zoom</code> (test at zoom 1 and zoom 2 to prove the division).</li>
+    </ul>
+    <p>Ask me for help if constructing the input states is fiddly — the <code>MouseState</code> constructor takes position, scroll, and button states in a specific order.</p>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer all three <strong>before</strong> opening the answers:</p>
+    <ol class="steps">
+      <li>Why can middle-mouse drag reuse the camera code unchanged, when the keyboard already pans?</li>
+      <li>When drag-panning while zoomed to 2×, why divide the screen delta by the zoom?</li>
+      <li>What makes <code>InputReader</code> unit-testable now, when Lesson 7's inline input was not?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li>Both produce the same <code>PanCommand</code>; the <code>CameraController</code> applies commands regardless of which device produced them.</li>
+        <li>At 2× zoom, one world unit covers two screen pixels, so a screen drag of N pixels is only N/2 world units — dividing keeps the grabbed point under the cursor.</li>
+        <li>It takes device state and <code>dt</code> as parameters and returns commands as data, with no graphics device or static input calls — a pure function you can feed constructed states.</li>
+      </ol>
+    </details>
+
+    <h2 id="next">Where this goes next</h2>
+    <p>You now have a rebinding-ready input layer feeding a camera controller. Natural follow-ons: load <code>InputBindings</code> from config (the rebinding you designed for), add a <code>SelectCellCommand</code> so clicking a tile <em>does</em> something, or clamp the camera to the map edges. Tell me which to tackle.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0007-camera-controls-pan-and-zoom.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 7 — Camera controls: pan and zoom</span>
+      </a>
+      <a class="next" href="0009-place-first-settlement-on-a-tile.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 9 — Place a settlement on a tile</span>
+      </a>
+    </nav>
+
+    <footer>
+      <p>Primary sources: <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.Keyboard.html">MonoGame <code>Keyboard</code> API</a>, <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a>, and the <a href="../reference/coordinate-systems-and-transforms.html">Coordinate Systems and Transforms</a> reference. The command pattern here is a lightweight take on the <a href="https://gameprogrammingpatterns.com/command.html">Command pattern</a> from <em>Game Programming Patterns</em>.</p>
+      <p>Ask me follow-up questions — especially about the folder split or the drag-under-zoom math.</p>
+    </footer>
+  </main>
+</body>
+</html>

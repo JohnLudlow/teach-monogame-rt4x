@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 9 — Place a settlement on a tile</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 9 · 45 minutes · World interaction</p>
+    <h1>Lesson 9 — Place a settlement on a tile</h1>
+    <p>Your grid is no longer just something to point at: it becomes a world where an action has a durable result. In this lesson, a <strong>left click places one gold settlement marker on the pointed tile</strong>. The marker stays attached while the camera pans and zooms, and clicking its tile again does not create a duplicate. This is the smallest useful vertical slice of the RT4X mission: player intent → world rule → rendered state.</p>
+
+    <div class="series">
+      <strong>World interaction (9 of the course so far).</strong>
+      Lesson 8 made devices produce commands. Here a placement controller resolves a screen-space click through the existing camera and grid, then a world system applies the game rule. Keep the <a href="../reference/tile-placement-pipeline.html">tile-placement pipeline reference</a> nearby.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#goal">The one behaviour and its boundary</a></li>
+        <li><a href="#test">Step 1 — Specify occupancy with tests</a></li>
+        <li><a href="#world">Step 2 — Store settlements by grid cell</a></li>
+        <li><a href="#command">Step 3 — Express a placement click</a></li>
+        <li><a href="#input">Step 4 — Emit once per click, not once per frame</a></li>
+        <li><a href="#resolve">Step 5 — Resolve screen space at the boundary</a></li>
+        <li><a href="#wire">Step 6 — Wire and draw the marker</a></li>
+        <li><a href="#feedback">Fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="goal">The one behaviour and its boundary</h2>
+    <p>The rule is deliberately small: <em>a settlement can occupy an in-bounds, unoccupied grid cell.</em> A settlement stores its <code>Point Cell</code>, not its screen pixels or a <code>Rectangle</code>. Screen coordinates are only how the player points; grid coordinates are the durable world identity.</p>
+    <pre>left-click at screen (x, y)
+       │
+       ▼
+PlaceSettlementAtScreenCommand(screen position)  ← input intent
+       │
+       ▼
+SettlementPlacementController                   ← Screen → Grid boundary
+       │
+       ▼
+SettlementPlacementSystem.TryPlace(cell)        ← validates + changes state
+       │
+       ▼
+DrawSettlements: cell → world rectangle → marker</pre>
+    <p>This preserves the lessons already learned. The input reader still has no <code>Grid</code> or <code>Camera</code> dependency. The world system never sees screen coordinates. Only the controller, where UI intent crosses into the world, needs both.</p>
+
+    <h2 id="test">Step 1 — Specify occupancy with tests</h2>
+    <p>Start with the pure rule, before drawing. Create <code>FourxGame.MonoGame.UnitTests/Systems/World/SettlementPlacementSystemTests.cs</code>. These tests protect the two behaviours that later city and building placement will need: a valid empty cell succeeds; a second placement on the same cell changes nothing.</p>
+    <pre>using FourxGame.MonoGame.Core.Entities;
+using FourxGame.MonoGame.Core.Systems.World;
+using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.UnitTests.Systems.World;
+
+public class SettlementPlacementSystemTests
+{
+  private static Grid MakeGrid() =&gt; new()
+  {
+    GridCellSize = 48,
+    GridSizeX = 32,
+    GridSizeY = 16,
+    Origin = Vector2.Zero
+  };
+
+  [Fact]
+  public void TryPlace_EmptyInBoundsCell_AddsSettlement()
+  {
+    var system = new SettlementPlacementSystem(MakeGrid());
+    var cell = new Point(4, 3);
+
+    var placed = system.TryPlace(cell);
+
+    Assert.True(placed);
+    Assert.Equal(new Settlement(cell), system.Settlements[cell]);
+  }
+
+  [Fact]
+  public void TryPlace_OccupiedCell_LeavesTheOriginalSettlementUntouched()
+  {
+    var system = new SettlementPlacementSystem(MakeGrid());
+    var cell = new Point(4, 3);
+    system.TryPlace(cell);
+
+    var placedAgain = system.TryPlace(cell);
+
+    Assert.False(placedAgain);
+    Assert.Single(system.Settlements);
+    Assert.Equal(new Settlement(cell), system.Settlements[cell]);
+  }
+
+  [Theory]
+  [InlineData(-1, 0)]
+  [InlineData(32, 0)]
+  [InlineData(0, 16)]
+  public void TryPlace_OffGridCell_DoesNotAddSettlement(int x, int y)
+  {
+    var system = new SettlementPlacementSystem(MakeGrid());
+
+    var placed = system.TryPlace(new Point(x, y));
+
+    Assert.False(placed);
+    Assert.Empty(system.Settlements);
+  }
+}</pre>
+    <p>Run the tests now. They should fail to compile because the types do not exist — useful red, not a problem. Notice that this is game logic with no <code>MouseState</code>, <code>SpriteBatch</code>, or window involved.</p>
+
+    <h2 id="world">Step 2 — Store settlements by grid cell</h2>
+    <p>Create the identity in <code>Core/Entities/Settlement.cs</code>. A record is enough for this first vertical slice: its cell is its durable identity and record equality makes the test expressive.</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Entities;
+
+public sealed record Settlement(Point Cell);</pre>
+    <p>Then create <code>Core/Systems/World/SettlementPlacementSystem.cs</code>. A dictionary makes the occupancy rule structural: one <code>Point</code> key can map to at most one settlement. It also gives future code an efficient answer to “what is on this cell?”</p>
+    <pre>using System.Collections.Generic;
+using FourxGame.MonoGame.Core.Entities;
+using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Systems.World;
+
+public sealed class SettlementPlacementSystem(Grid grid)
+{
+  private readonly Dictionary&lt;Point, Settlement&gt; _settlements = [];
+
+  public IReadOnlyDictionary&lt;Point, Settlement&gt; Settlements =&gt; _settlements;
+
+  public bool TryPlace(Point cell)
+  {
+    if (!grid.IsValidGridPosition(cell))
+    {
+      return false;
+    }
+
+    return _settlements.TryAdd(cell, new Settlement(cell));
+  }
+}</pre>
+    <p>Run the tests again. They should now pass. <code>TryAdd</code> is doing an important job: it returns <code>false</code> and preserves the original entry when the key already exists. Do not implement duplicate prevention in drawing or input; it is a world rule, so it belongs here.</p>
+
+    <h2 id="command">Step 3 — Express a placement click</h2>
+    <p>Add this record in a new <code>Core/Commands/WorldCommands.cs</code> file. It joins the existing <code>InputCommand</code> hierarchy from Lesson 8:</p>
+    <pre>using Microsoft.Xna.Framework;
+
+namespace FourxGame.MonoGame.Core.Commands;
+
+/// A request to place a settlement at a pointed screen position.
+public sealed record PlaceSettlementAtScreenCommand(Vector2 ScreenPosition) : InputCommand;</pre>
+    <p>Why does an otherwise device-agnostic command carry a screen coordinate? It is a boundary value, not world state. The command says what the player intends, while preserving the one fact needed to resolve that intent after camera commands in the same frame. The next step converts it immediately; no settlement will store this position.</p>
+
+    <h2 id="input">Step 4 — Emit once per click, not once per frame</h2>
+    <p>Add a field and a helper to <code>InputReader</code>. Call the helper from <code>Produce</code> after the existing mouse handlers. The edge test means holding the button down across ten updates produces exactly one command, rather than ten settlements.</p>
+    <pre>// field
+private bool _wasPlaceButtonDown;
+
+// near the other handler calls in Produce(...)
+HandlePlaceSettlementClick(mouse, commands);</pre>
+    <pre>private void HandlePlaceSettlementClick(
+  MouseState mouse,
+  List&lt;InputCommand&gt; commands)
+{
+  var isPlaceButtonDown = mouse.LeftButton == ButtonState.Pressed;
+
+  if (isPlaceButtonDown &amp;&amp; !_wasPlaceButtonDown)
+  {
+    commands.Add(
+      new PlaceSettlementAtScreenCommand(new Vector2(mouse.X, mouse.Y)));
+  }
+
+  _wasPlaceButtonDown = isPlaceButtonDown;
+}</pre>
+    <p>Use left click only for this prototype. Middle click is already reserved for drag-panning, so these gestures do not compete. A later lesson can make the selected build tool and its binding configurable; do not build a tool palette now.</p>
+    <p>Add this focused input test beside your existing input tests. It is required coverage for the new input behaviour: it proves the press edge rather than merely asserting that a reader can be constructed. Add <code>using System.Linq;</code> if your project does not already supply it through implicit usings.</p>
+    <pre>[Fact]
+public void Produce_HeldLeftClick_EmitsOnlyOnePlacementCommand()
+{
+  var reader = new InputReader(new InputBindings());
+  var released = new MouseState(100, 100, 0,
+    ButtonState.Released, ButtonState.Released, ButtonState.Released,
+    ButtonState.Released, ButtonState.Released);
+  var pressed = new MouseState(100, 100, 0,
+    ButtonState.Pressed, ButtonState.Released, ButtonState.Released,
+    ButtonState.Released, ButtonState.Released);
+
+  reader.Produce(new KeyboardState(), released, 1f, 0.016f);
+  var firstFrame = reader.Produce(new KeyboardState(), pressed, 1f, 0.016f);
+  var heldFrame = reader.Produce(new KeyboardState(), pressed, 1f, 0.016f);
+
+  Assert.Single(firstFrame.OfType&lt;PlaceSettlementAtScreenCommand&gt;());
+  Assert.Empty(heldFrame.OfType&lt;PlaceSettlementAtScreenCommand&gt;());
+}</pre>
+
+    <h2 id="resolve">Step 5 — Resolve screen space at the boundary</h2>
+    <p>Create <code>Core/Systems/World/SettlementPlacementController.cs</code>. It consumes the click intent, converts it using the same <code>Grid.ScreenToGrid</code> path as hover picking, and invokes the domain rule only when the result is a valid cell.</p>
+    <pre>using System.Collections.Generic;
+using FourxGame.MonoGame.Core.Commands;
+using FourxGame.MonoGame.Core.Entities;
+
+namespace FourxGame.MonoGame.Core.Systems.World;
+
+public sealed class SettlementPlacementController(
+  Grid grid,
+  Camera camera,
+  SettlementPlacementSystem settlements)
+{
+  public void Apply(IReadOnlyList&lt;InputCommand&gt; commands)
+  {
+    foreach (var command in commands)
+    {
+      if (command is not PlaceSettlementAtScreenCommand place)
+      {
+        continue;
+      }
+
+      var cell = grid.ScreenToGrid(place.ScreenPosition, camera.Transform);
+      if (cell is not null)
+      {
+        settlements.TryPlace(cell.Value);
+      }
+    }
+  }
+}</pre>
+    <p>Now write the transform-sensitive test. It proves that a click remains correct through the camera transform — a critical regression test for a strategy game, not a test of implementation detail.</p>
+    <pre>[Fact]
+public void Apply_PlaceCommand_MapsScreenPositionThroughCameraToTheTargetCell()
+{
+  var grid = MakeGrid();
+  var camera = new Camera { Zoom = 2f, Position = new Vector2(100, 40) };
+  var settlements = new SettlementPlacementSystem(grid);
+  var controller = new SettlementPlacementController(grid, camera, settlements);
+
+  // At this camera transform, world (200, 150) appears at screen (500, 340).
+  controller.Apply([new PlaceSettlementAtScreenCommand(new Vector2(500, 340))]);
+
+  Assert.Contains(new Point(4, 3), settlements.Settlements.Keys);
+}</pre>
+    <p><strong>Order matters:</strong> in <code>Game1</code>, apply <code>CameraController</code> first, then this controller. A wheel or pan command and a click in one update therefore resolve against the camera state that will be drawn that frame.</p>
+
+    <h2 id="wire">Step 6 — Wire and draw the marker</h2>
+    <p>Add fields to <code>Game1</code>:</p>
+    <pre>private SettlementPlacementSystem _settlements = null!;
+private SettlementPlacementController _settlementPlacementController = null!;</pre>
+    <p>After constructing the camera in <code>Initialize</code>, construct the two systems:</p>
+    <pre>_settlements = new SettlementPlacementSystem(_grid);
+_settlementPlacementController = new SettlementPlacementController(
+  _grid, _camera, _settlements);</pre>
+    <p>In <code>Update</code>, keep the existing command production, then route the same command list to the camera and placement controllers in this order:</p>
+    <pre>_cameraController.Apply(commands);
+_settlementPlacementController.Apply(commands);
+
+_hoveredCell = _grid.ScreenToGrid(
+  new Vector2(mouseState.X, mouseState.Y),
+  _camera.Transform);</pre>
+    <p>Finally, call <code>DrawSettlements</code> inside the existing world-space <code>SpriteBatch.Begin(transformMatrix: _camera.Transform)</code> block, after the grid and before the hovered-cell overlay:</p>
+    <pre>DrawGrid(_spriteBatch, _grid);
+DrawSettlements(_spriteBatch, _grid);
+DrawHoveredCell(_spriteBatch, _grid);</pre>
+    <p>Use the existing 1×1 <code>_pixel</code>; do not add art or content-pipeline work for a proof marker:</p>
+    <pre>private void DrawSettlements(SpriteBatch spriteBatch, Grid grid)
+{
+  foreach (var settlement in _settlements.Settlements.Values)
+  {
+    var tile = grid.GridToWorldRect(settlement.Cell);
+    const int markerSize = 20;
+    var marker = new Rectangle(
+      tile.Center.X - markerSize / 2,
+      tile.Center.Y - markerSize / 2,
+      markerSize,
+      markerSize);
+
+    spriteBatch.Draw(_pixel, marker, Color.Gold);
+  }
+}</pre>
+    <p>The marker is drawn in world coordinates and goes through the same camera transform as the grid. It will therefore pan and zoom with its tile without any special camera code. The hovered red cell is intentionally drawn last so it remains a clear interaction cue.</p>
+
+    <h2 id="feedback">Fast feedback</h2>
+    <ol class="steps">
+      <li>Run <code>dotnet test FourxGame.MonoGame.UnitTests/FourxGame.MonoGame.UnitTests.csproj</code>. All placement tests should pass.</li>
+      <li>Run <code>dotnet build monogame-rt4x.slnx</code>.</li>
+      <li>Run <code>dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</code>.</li>
+    </ol>
+    <p>Success looks like: left-clicking an in-grid tile creates one gold square centred on it; holding the button does not create repeated state; clicking outside the grid changes nothing; clicking an occupied tile leaves one marker; pan, zoom, and drag leave every marker glued to its tile.</p>
+    <div class="callout">
+      <h3>If something looks wrong</h3>
+      <p><strong>Marker offset from its tile?</strong> Use <code>GridToWorldRect</code> and its <code>Center</code>, not raw pixel math. <strong>Marker drifts while panning?</strong> Verify the settlement draw remains inside the <code>SpriteBatch</code> block with <code>_camera.Transform</code>. <strong>Dozens of markers from one hold?</strong> Check that <code>_wasPlaceButtonDown</code> is updated after the edge test. <strong>Wrong tile after zoom?</strong> Confirm the placement controller uses <code>grid.ScreenToGrid(..., camera.Transform)</code>, never direct division of screen pixels.</p>
+    </div>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer before opening the feedback. Retrieval is what turns today’s implementation into a reusable design instinct.</p>
+    <ol class="steps">
+      <li>Which coordinate system should a stored settlement use: screen, world, or grid?</li>
+      <li>What precise condition turns a held left mouse button into one placement command?</li>
+      <li>Why does the placement controller, rather than <code>InputReader</code>, own the Screen → Grid conversion?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li><strong>Grid.</strong> The cell is the stable map identity and stays meaningful as the camera changes. Rendering can derive a world rectangle from it.</li>
+        <li>The button is pressed <em>this</em> update and was not pressed in the preceding update: <code>isDown &amp;&amp; !_wasPlaceButtonDown</code>.</li>
+        <li><code>InputReader</code> translates devices into intent and has no world dependencies. The controller is the boundary that knows the intent, grid, and camera transform needed to resolve it.</li>
+      </ol>
+    </details>
+
+    <h2 id="next">What you have now</h2>
+    <p>You have the first persistent world object in your fantasy RT4X: a click becomes an intent, valid world state is stored by cell, and that state is rendered through the camera. Do not add city menus, production, or art yet. The next good increment is to select an existing settlement versus placing one, or to give the settlement a simple terrain rule. Ask me follow-up questions at any step — especially if you want to trace one click through the pipeline together.</p>
+
+    <p class="course-home"><a href="../index.html">↑ Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0008-input-command-layer-and-drag-panning.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 8 — An input command layer (and drag-panning)</span>
+      </a>
+      <a class="next disabled" aria-hidden="true" tabindex="-1">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Coming soon</span>
+      </a>
+    </nav>
+
+    <footer>
+      <p>Primary source: the <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Input.MouseState.html">MonoGame <code>MouseState</code> API</a> for button-state sampling, together with the course’s <a href="../reference/coordinate-systems-and-transforms.html">coordinate systems and transforms reference</a> for camera-correct picking. The command boundary follows the <a href="https://gameprogrammingpatterns.com/command.html">Command pattern</a> described in <em>Game Programming Patterns</em>.</p>
+      <p>Ask me follow-up questions — I can review your implementation, help diagnose the first failed test, or explain why a particular responsibility belongs in one layer rather than another.</p>
+    </footer>
+  </main>
+</body>
+</html>
