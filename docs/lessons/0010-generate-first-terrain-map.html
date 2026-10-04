@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 10 — Generate a first terrain map</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 10 · 30 minutes · Map generation</p>
+    <h1>Lesson 10 — Generate a first terrain map</h1>
+    <p>Turn your empty 32 × 16 grid into a <strong>repeatable, coloured terrain map</strong>. Today the map is intentionally simple: each cell receives one of three terrain types from a seeded generator. You build it in the <code>monogame-rt4x</code> subject repository, not in this teaching repository. This is the first visible step toward the fantasy RT4X world in <a href="https://github.com/JohnLudlow/monogame-rt4x/issues/8">map-generation issue 8</a>, specifically <a href="https://github.com/JohnLudlow/monogame-rt4x/issues/9">the terrain-map subissue</a>.</p>
+
+    <div class="series">
+      <strong>From interaction to world data.</strong>
+      <a href="0009-place-first-settlement-on-a-tile.html">Lesson 9</a> stored settlements by grid cell. This lesson stores terrain by the same grid cell; the camera changes only how it is drawn. Keep the <a href="../reference/terrain-generation-pipeline.html">terrain pipeline reference</a> nearby.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#boundary">Decide what the generator owns</a></li>
+        <li><a href="#test">Specify the result before drawing it</a></li>
+        <li><a href="#generate">Generate and store terrain</a></li>
+        <li><a href="#draw">Draw the map through the camera</a></li>
+        <li><a href="#feedback">Get fast feedback</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="boundary">Decide what the generator owns</h2>
+    <p>A terrain type is <em>world data</em>, not a colour. Choose a tiny set such as <code>Water</code>, <code>Plains</code>, and <code>Forest</code>. For this lesson, the generator receives width, height, and a seed and returns one terrain type per cell. The renderer maps types to colours and uses <code>GridToWorldRect(cell)</code> inside the existing camera-transformed <code>SpriteBatch</code>. Neither the generator nor the stored map knows about <code>Color</code>, <code>SpriteBatch</code>, mouse pixels, or zoom.</p>
+    <pre>seed + dimensions → terrain generator → terrain[x, y]
+                                            │
+                       cell + GridToWorldRect + colour
+                                            │
+                                  camera-transformed Draw</pre>
+    <p>Why not start with Wave Function Collapse? The <a href="https://github.com/mxgmn/WaveFunctionCollapse">original WFC project</a> describes a <em>simple tiled model</em> with explicit tile-adjacency constraints and propagation; independent random choices cannot enforce “ice never touches desert.” A <a href="https://www.redblobgames.com/x/2022-voronoi-maps-tutorial/">Voronoi map</a> partitions space around seed points, useful later for larger regions. Neither is required just to establish and render the per-cell terrain data they will eventually consume or produce. Nor does a 2D colour array implement underground z-levels: that is a later data-model decision, not something to simulate with screen coordinates.</p>
+
+    <h2 id="test">Step 1 — Specify the result before drawing it</h2>
+    <p>In the subject repo's <code>FourxGame.MonoGame.Core</code> project, sketch a <code>TerrainType</code> enum, a read-only-to-callers terrain map with <code>GetTerrain(Point cell)</code>, and a generator. Pick names that fit your existing <code>Grid</code> conventions; keep the terrain storage separate from the grid's coordinate math. Start with a focused unit test in <code>FourxGame.MonoGame.UnitTests</code>:</p>
+    <ol class="steps">
+      <li>A generated 32 × 16 map has terrain for every valid cell, including <code>(0, 0)</code> and <code>(31, 15)</code>; reading <code>(32, 0)</code> or a negative index fails explicitly rather than silently returning a default.</li>
+      <li>Generating twice with the same dimensions and seed returns the same terrain type at <em>every</em> cell. Construct a fresh generator or fresh local RNG per generation so prior calls do not consume the next map's randomness.</li>
+      <li>The output contains only the terrain types you defined. Do not assert that two different seeds <em>must</em> differ on a tiny map: random sequences can coincide.</li>
+    </ol>
+    <p>These tests exercise world data without constructing a game window. The success criterion is an observable contract, not a hard-coded list of pseudo-random values. For the seed behaviour, see Microsoft's <a href="https://learn.microsoft.com/en-us/dotnet/api/system.random.-ctor?view=net-10.0">seeded <code>Random</code> constructor</a>; do not assume a saved seed alone promises identical maps across changes to the generator or runtime.</p>
+
+    <h2 id="generate">Step 2 — Generate and store terrain</h2>
+    <p>In the subject repo, generate terrain <strong>once</strong> during initialization, not every <code>Update</code> or <code>Draw</code>. Use a local <code>Random(seed)</code> and visit cells in a fixed order (for example, row by row). Let each cell draw from your three terrain types, then store that value by grid coordinate. Pass dimensions from the existing <code>Grid</code> so the data matches its 32 × 16 bounds. Keep the seed visible in one place so you can reproduce a map when reporting a bug.</p>
+    <p>This first generator deliberately does <strong>not</strong> promise natural coastlines, valid adjacency, rivers, biomes, administrative regions, or multiple levels. Those are separate requirements in <a href="https://github.com/JohnLudlow/monogame-rt4x/issues/8">issue 8 and its subissues</a>. Adding adjacency rules will require checking constraints while selecting cells, not merely recolouring an invalid result. A later z-level design will need to distinguish terrain at the same <code>(x, y)</code> on different levels; avoid treating <code>Point</code> as a complete 3D location.</p>
+
+    <h2 id="draw">Step 3 — Draw the map through the camera</h2>
+    <p>In the subject repo's <code>Game1.Draw</code>, draw each terrain cell using the existing white pixel stretched over <code>grid.GridToWorldRect(new Point(x, y))</code> and tinted according to its terrain type. Draw terrain <em>before</em> grid lines, settlement markers, and the hovered-cell overlay inside the same <code>SpriteBatch.Begin(transformMatrix: _camera.Transform)</code> block. Keep type-to-colour mapping at the presentation boundary, not in terrain data. <a href="https://docs.monogame.net/api/Microsoft.Xna.Framework.Graphics.SpriteBatch.html"><code>SpriteBatch</code>'s official API</a> documents its transform matrix and tinted draw overloads.</p>
+    <p>The same tile coordinates now answer three different questions: which terrain occupies this cell, can a settlement be placed here, and where should the coloured rectangle be drawn? Only the last one needs world pixels. Do not add terrain-based settlement restrictions in this lesson; existing placement should still work.</p>
+
+    <h2 id="feedback">Fast feedback</h2>
+    <ol class="steps">
+      <li>Run <code>dotnet test FourxGame.MonoGame.UnitTests/FourxGame.MonoGame.UnitTests.csproj</code> from the subject repo. Check the actual exit status as well as the test summary; the previous lesson recorded a test-runner exit-code anomaly.</li>
+      <li>Run <code>dotnet run --project FourxGame.MonoGame/FourxGame.MonoGame.csproj</code>. You should see differently coloured tiles under the existing grid, hover highlight, and settlement markers.</li>
+      <li>Restart with the same seed: the colours should stay at the same cells. Change only the seed: inspect whether the pattern changes. Pan and zoom; terrain and markers must remain aligned.</li>
+    </ol>
+    <div class="callout">
+      <h3>If the map looks wrong</h3>
+      <p><strong>Flickering colours?</strong> Generate once, not during drawing. <strong>Missing last row?</strong> Loop while <code>y &lt; GridSizeY</code> (and similarly for <code>x</code>). <strong>Coloured tiles drift from settlements?</strong> Use <code>GridToWorldRect</code> and the same camera transform for both. <strong>Markers disappear?</strong> Draw terrain before markers.</p>
+    </div>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Answer these <em>before</em> opening the feedback, ideally after a short break. First write down your answers, then check them.</p>
+    <ol class="steps">
+      <li>Where does terrain belong: world data or drawing state? Why?</li>
+      <li>Why does seeding the random generator not enforce a rule like “ice cannot border desert”?</li>
+      <li>What extra coordinate will an underground tile need to distinguish it from the surface tile at the same <code>(x, y)</code>?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li><strong>World data.</strong> Terrain is stable across camera changes; its colour is a presentation choice.</li>
+        <li>A seed makes a sequence reproducible, but each independent choice still ignores its neighbours. An adjacency-constrained generator must propagate or validate those constraints.</li>
+        <li>A <strong>level</strong> (or z coordinate). <code>(x, y)</code> by itself cannot identify both surface and underground terrain.</li>
+      </ol>
+    </details>
+
+    <p>When you have a coloured map and the tests pass, tell me what you built and answer the retrieval check. Then we can choose the next slice of <a href="https://github.com/JohnLudlow/teach-monogame-rt4x/issues/3">the teaching map-generation issue</a>: explicit tile-adjacency rules, multiple z-levels, or regions. Ask me follow-up questions at any point; the goal is for you to understand and implement the subject code.</p>
+
+    <p class="course-home"><a href="../index.html">Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0009-place-first-settlement-on-a-tile.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 9 — Place a settlement on a tile</span>
+      </a>
+      <a class="next" href="0011-enforce-terrain-adjacency-rules.html">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Lesson 11 — Enforce terrain adjacency rules</span>
+      </a>
+    </nav>
+    <footer>
+      <p>Primary reading: <a href="https://www.redblobgames.com/maps/terrain-from-noise/">Red Blob Games — Making maps with noise</a> explains why filling a terrain array is a separate problem from drawing it, and how richer terrain can build on that data. For the later approaches named in the issue, read the original <a href="https://github.com/mxgmn/WaveFunctionCollapse">WFC implementation</a> and <a href="https://www.redblobgames.com/x/2022-voronoi-maps-tutorial/">Voronoi maps tutorial</a>. Ask me about any step that is unclear.</p>
+    </footer>
+  </main>
+</body>
+</html>

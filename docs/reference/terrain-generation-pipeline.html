@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terrain generation pipeline</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · Map generation</p>
+    <h1>Terrain generation pipeline</h1>
+    <p>Keep <strong>what occupies a tile</strong> separate from <strong>how to choose it</strong> and <strong>how to draw it</strong>. The present world is a 32 × 16 2D grid; later map-generation requirements add constraints, levels, and regions without turning camera pixels into world identity.</p>
+
+    <h2>Data flow</h2>
+    <pre>dimensions + seed
+    → generator (one local RNG, fixed cell order)
+    → terrain[x, y] (one type per cell)
+    → colour + GridToWorldRect(x, y)
+    → SpriteBatch with camera.Transform</pre>
+    <p>Generate once, then render the stored map every frame. Draw terrain before grid lines, settlements, and hover overlay. Settlements continue to use their stable cell coordinates.</p>
+
+    <h2>Different jobs, different techniques</h2>
+    <table>
+      <thead><tr><th>Question</th><th>Tool</th><th>Not guaranteed by that tool</th></tr></thead>
+      <tbody>
+        <tr><td>How do I reproduce a first terrain map?</td><td>Seeded random choices per tile</td><td>Coherent coastlines or valid neighbours</td></tr>
+        <tr><td>Which terrain types may touch?</td><td>Simple tiled WFC with explicit adjacency rules and propagation</td><td>Administrative regions or rivers</td></tr>
+        <tr><td>Which larger region owns a location?</td><td>Voronoi seeds and nearest-seed regions</td><td>Tile adjacency rules or biome transitions</td></tr>
+        <tr><td>Which tile is at this location underground?</td><td>A level-aware map coordinate and per-level data</td><td>Any particular generation algorithm</td></tr>
+      </tbody>
+    </table>
+    <p>These stages can be combined later, but their order and interaction need deliberate design. A Voronoi region may contain many tiles; it is not automatically a biome, province, or water basin. WFC constraints do not by themselves model downhill river flow.</p>
+
+    <h2>Small contract checklist</h2>
+    <ul class="steps">
+      <li>Can every in-bounds <code>Point</code> return one terrain type, and does an invalid <code>Point</code> fail explicitly?</li>
+      <li>Are the same dimensions and seed reproducible within the current generator and runtime?</li>
+      <li>Does generation run once, without depending on <code>SpriteBatch</code>, <code>Camera</code>, or mouse state?</li>
+      <li>Are colours assigned at rendering time using <code>GridToWorldRect</code> and the existing camera transform?</li>
+      <li>Are adjacency, z-levels, rivers, and regions still labelled as future work rather than implied by random tiles?</li>
+    </ul>
+
+    <footer>
+      <p>Companion to <a href="../lessons/0010-generate-first-terrain-map.html">Lesson 10 — Generate a first terrain map</a>; previous interaction pattern: <a href="tile-placement-pipeline.html">Tile placement pipeline</a>.</p>
+      <p>Primary sources: <a href="https://www.redblobgames.com/maps/terrain-from-noise/">Red Blob Games on terrain arrays</a>, the <a href="https://github.com/mxgmn/WaveFunctionCollapse">original WFC project</a>, and <a href="https://www.redblobgames.com/x/2022-voronoi-maps-tutorial/">Red Blob Games on Voronoi maps</a>.</p>
+    </footer>
+  </main>
+</body>
+</html>

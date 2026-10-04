@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 11 — Enforce terrain adjacency rules</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Lesson 11 · 35 minutes · Map generation</p>
+    <h1>Lesson 11 — Enforce terrain adjacency rules</h1>
+    <p>Make the terrain generator obey a rule supplied from outside it: <strong>two forbidden terrain types never share an edge</strong>. Keep the rule data replaceable so later biome decisions can change without rewriting generation. You implement this in <code>monogame-rt4x</code>, toward <a href="https://github.com/JohnLudlow/monogame-rt4x/issues/11">the placement-rules subissue</a>; this lesson does not yet implement full Wave Function Collapse (WFC). Keep the <a href="../reference/terrain-adjacency-rules.html">adjacency reference</a> handy.</p>
+
+    <div class="series">
+      <strong>From tiles to constraints.</strong>
+      <a href="0010-generate-first-terrain-map.html">Lesson 10</a> made terrain data repeatable and drawable. Now keep the same cell data and renderer, but change <em>how each type is chosen</em>. The learner has already identified why independent seeded choices cannot satisfy neighbour rules, and why a dead end may eventually require backtracking.
+    </div>
+
+    <nav class="toc" aria-label="On this page">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#preflight">Check the first terrain slice</a></li>
+        <li><a href="#rule">Represent a rule, not a magic exception</a></li>
+        <li><a href="#test">Write the behavioural tests</a></li>
+        <li><a href="#generate">Filter candidates while generating</a></li>
+        <li><a href="#feedback">Verify the slice</a></li>
+        <li><a href="#retrieval">Retrieval check</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="preflight">Check the first terrain slice</h2>
+    <p>Your current <code>TerrainGenerator</code> calls <code>Random.Next((int)TerrainType.Water, (int)TerrainType.Desert)</code>. The upper bound is <em>exclusive</em>, so <code>Desert</code> is never produced. Rather than widening the numeric range and relying on enum order, provide the generator an explicit list of eligible terrain types, omitting <code>None</code>. Your <code>Random</code> is also stored on the generator: calling <code>GenerateTerrain()</code> twice on that instance advances the sequence. If same generator + same seed should yield the same map on both calls, create the seeded RNG inside each generation call (and test that contract). Finally, <code>GetTerrainForCell</code> currently returns <code>None</code> outside the grid; Lesson 10 called for an explicit invalid-cell failure. Choose a throwing lookup for invalid coordinates so <code>None</code> cannot masquerade as valid terrain. Keep these repairs in the subject repo; do not change its code in this teaching workspace.</p>
+    <p>These observations depend on the <a href="https://learn.microsoft.com/en-us/dotnet/api/system.random.next?view=net-10.0">official <code>Random.Next</code> API</a>. Add a test that verifies the <em>eligible set</em> rather than requiring every terrain type to appear in a small random sample.</p>
+
+    <h2 id="rule">Step 1 — Represent a rule, not a magic exception</h2>
+    <p>For a first example only, say <code>Water</code> and <code>Desert</code> may not touch. The issue deliberately leaves real terrain rules undecided: do not bake this pair into <code>TerrainGenerator</code>. Define a separate rules object that accepts a finite set of eligible types and allowed <em>unordered</em> pairs, and answers <code>Allows(left, right)</code>. Make <code>Allows(a, b)</code> equal <code>Allows(b, a)</code> for this direction-independent rule. Decide explicitly whether a type may border itself, and reject or explicitly exclude unknown types instead of treating a missing entry as permission.</p>
+    <p>Pass a snapshot of these rules to generation, so changing the configuration for the <em>next</em> map is possible without silently altering a map already generated. Start with a tiny manually specified pair table; persistence, editing UI, and biome design are later concerns. The <a href="https://github.com/mxgmn/WaveFunctionCollapse">original WFC project's simple tiled model</a> likewise starts with tiles and adjacency data, then propagates what those constraints permit.</p>
+
+    <h2 id="test">Step 2 — Write the behavioural tests first</h2>
+    <p>Use your existing <code>FourxGame.MonoGame.UnitTests</code> project. These tests make the <em>mechanism</em> observable without committing to final world-building rules:</p>
+    <ol class="steps">
+      <li>With a rules object forbidding <code>Water</code>–<code>Desert</code> but permitting each type to touch itself and <code>Plains</code>, assert <code>Allows(Water, Desert)</code> and its reverse are both false. Build a second rules object that permits the pair and show the answer changes without modifying generator code.</li>
+      <li>Generate a map from the first rule set, then inspect <em>every</em> horizontal and vertical neighbouring pair. Assert each pair is allowed by the supplied rules. Testing one sample cell or just counting terrain types cannot establish this guarantee.</li>
+      <li>For a 2 × 1 grid with <em>only Water eligible</em> but <code>Water</code>–<code>Water</code> forbidden, require a clear generation failure with the seed and blocked cell, never a partial/default-filled map presented as success. This is a deliberately impossible case.</li>
+      <li>Run generation twice with the same dimensions, seed, and rule snapshot. Compare every cell; changing only the rule snapshot must not mutate an already generated map.</li>
+    </ol>
+    <p>Start with the rule-object test: it should fail before the rules exist, then pass before you integrate generation. Your generated-map test is a stronger check than “this seed looked right on screen.”</p>
+
+    <h2 id="generate">Step 3 — Filter candidates while generating</h2>
+    <p>For this <em>first rule-driven generator</em>, keep a fixed row-by-row order. At each cell, begin with the supplied eligible types, keep those allowed beside any already assigned neighbour to the left and above, then choose among the remaining candidates with the seeded RNG. An empty candidate set is a contradiction: report the seed and cell explicitly. Do not fill with <code>None</code>, silently skip the cell, or present the partial array as a completed map. The current <code>Game1</code> can keep drawing completed maps in the same order as Lesson 10.</p>
+    <pre>for each cell in a fixed order:
+    candidates = eligible types
+    remove candidates forbidden beside placed neighbours
+    if candidates is empty: report contradiction (seed, cell)
+    otherwise: choose one candidate using the seeded RNG
+after completion: verify every cardinal neighbour pair</pre>
+    <p>This greedy approach is intentionally <strong>not WFC</strong>. Even when a valid map exists, an earlier choice can leave a later cell empty. Do not silently retry forever: a finite retry budget can still fail a solvable map, and cannot make an impossible rule set succeed. WFC propagates remaining possibilities beyond already fixed neighbours; adding backtracking can revisit earlier choices when a contradiction appears. The <a href="https://github.com/mxgmn/WaveFunctionCollapse">original implementation</a> detects contradictions and can return failure; <em>backtracking is a separate strategy, not an automatic guarantee of WFC</em>. Once this smaller rule contract is sound, we can design bounded recovery or propagation against a concrete failing case.</p>
+
+    <h2 id="feedback">Fast feedback</h2>
+    <ol class="steps">
+      <li>Run your targeted rule and generator tests in the subject repo. Check the result of each adjacency assertion, not just whether the generator returned an array.</li>
+      <li>Run the game and verify the coloured map still pans and zooms under settlements and hover. Visual inspection is helpful but cannot replace the exhaustive neighbour test.</li>
+      <li>Deliberately supply the impossible 2 × 1 rule set: the failure must be visible with enough detail to reproduce it. Restore the normal rules afterward.</li>
+    </ol>
+
+    <h2 id="retrieval">Retrieval check</h2>
+    <p>Before opening the answers, write yours down from memory.</p>
+    <ol class="steps">
+      <li>Why test both <code>Allows(Water, Desert)</code> and <code>Allows(Desert, Water)</code>?</li>
+      <li>Why is “same seed” insufficient to guarantee a valid adjacency rule?</li>
+      <li>If filtering leaves no candidates for a cell, what can this lesson's generator say with certainty, and what <em>can't</em> it conclude about the rule set?</li>
+    </ol>
+    <details class="callout">
+      <summary><strong>Show answers</strong></summary>
+      <ol class="steps">
+        <li>This first rule treats an edge as undirected. Reversing the pair must give the same result; later directional rules would need an explicit direction parameter.</li>
+        <li>The seed only reproduces choices; validity requires a separate rule check and candidate filtering or constraint propagation.</li>
+        <li>This particular sequence of choices is contradictory and must fail explicitly. The rule set may still admit a different valid map; resolving that requires revised choices, backtracking, or a more powerful solver.</li>
+      </ol>
+    </details>
+
+    <p>Ask me follow-up questions, or bring a failed seed and its first blocked cell: tracing that concrete case will make the next step toward propagation or backtracking much easier to reason about. Do not record this lesson as completed until the subject code and tests demonstrate the rules work.</p>
+
+    <p class="course-home"><a href="../index.html">Course index</a></p>
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <a class="prev" href="0010-generate-first-terrain-map.html">
+        <span class="nav-label">Previous</span>
+        <span class="nav-title">Lesson 10 — Generate a first terrain map</span>
+      </a>
+      <a class="next disabled" aria-hidden="true" tabindex="-1">
+        <span class="nav-label">Next</span>
+        <span class="nav-title">Coming soon</span>
+      </a>
+    </nav>
+    <footer>
+      <p>Primary source: <a href="https://github.com/mxgmn/WaveFunctionCollapse">mxgmn/WaveFunctionCollapse</a>, especially its simple tiled model and the distinction between contradiction detection and successful generation. See also the <a href="../reference/terrain-generation-pipeline.html">terrain-generation pipeline</a> for where this rule layer belongs.</p>
+    </footer>
+  </main>
+</body>
+</html>

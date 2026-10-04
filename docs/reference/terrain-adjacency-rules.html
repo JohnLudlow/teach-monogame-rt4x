@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terrain adjacency rules</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <main>
+    <p class="kicker">Reference · Map generation</p>
+    <h1>Terrain adjacency rules</h1>
+    <p>A compact contract for the first placement-rule slice: rule data is supplied to generation, every placed pair must be allowed, and a contradiction must not look like a finished map.</p>
+
+    <h2>Rule contract</h2>
+    <ul class="steps">
+      <li>Enumerate eligible terrain types explicitly; exclude <code>None</code> and reject unknown types.</li>
+      <li>For an undirected cardinal edge, <code>Allows(a, b) == Allows(b, a)</code>. Configure self-adjacency explicitly.</li>
+      <li>Replace the rule snapshot between generations to change placement rules; already generated maps remain unchanged.</li>
+      <li>A completed map satisfies <code>Allows(map[x, y], map[x + 1, y])</code> for every horizontal edge and <code>Allows(map[x, y], map[x, y + 1])</code> for every vertical edge.</li>
+      <li>No candidates means a contradiction for the current choices, not necessarily proof that no valid map exists.</li>
+    </ul>
+
+    <h2>Three different responses to a dead end</h2>
+    <table>
+      <thead><tr><th>Response</th><th>What it does</th><th>Limitation</th></tr></thead>
+      <tbody>
+        <tr><td>Fail explicitly</td><td>Report seed and blocked cell; return no completed map</td><td>A valid arrangement might exist after different choices</td></tr>
+        <tr><td>Backtrack</td><td>Undo a previous choice and try another</td><td>Needs saved decisions and a termination policy</td></tr>
+        <tr><td>Propagate</td><td>Remove impossible candidates from neighbouring undecided cells</td><td>May still reach a contradiction requiring failure or recovery</td></tr>
+      </tbody>
+    </table>
+    <p>A fixed seed reproduces a choice sequence under the same generator and runtime; it cannot by itself guarantee a valid map. A greedy left/up filter is a stepping stone toward WFC's simple tiled model, not WFC itself.</p>
+
+    <footer>
+      <p>Companion to <a href="../lessons/0011-enforce-terrain-adjacency-rules.html">Lesson 11 — Enforce terrain adjacency rules</a>. Start with the <a href="terrain-generation-pipeline.html">terrain-generation pipeline</a> if the storage/generation/rendering boundary is unfamiliar.</p>
+      <p>Primary source: <a href="https://github.com/mxgmn/WaveFunctionCollapse">original WaveFunctionCollapse implementation</a>, especially its simple tiled adjacency model and contradiction behaviour.</p>
+    </footer>
+  </main>
+</body>
+</html>
