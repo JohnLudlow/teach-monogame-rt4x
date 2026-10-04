@@ -121,6 +121,28 @@
       </li>
     </ul>
 
+    <p class="phase">Map generation · give the world terrain</p>
+    <ul class="lesson-list">
+      <li>
+        <a class="lesson-card" href="lessons/0010-generate-first-terrain-map.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 10 — Generate a first terrain map</span>
+            <span class="card-meta">30 min</span>
+          </span>
+          <span class="card-desc">Fill the existing grid with reproducible terrain data, then render it through the camera without confusing random tiles with WFC or Voronoi regions.</span>
+        </a>
+      </li>
+      <li>
+        <a class="lesson-card" href="lessons/0011-enforce-terrain-adjacency-rules.html">
+          <span class="card-head">
+            <span class="card-title">Lesson 11 — Enforce terrain adjacency rules</span>
+            <span class="card-meta">35 min</span>
+          </span>
+          <span class="card-desc">Supply changeable adjacency rules to generation, verify every neighbouring pair, and report contradictions explicitly before tackling WFC propagation.</span>
+        </a>
+      </li>
+    </ul>
+
     <h2 id="references">References</h2>
     <p>Compressed, quick-reference companions to the lessons. Good to keep open while you work — or print out.</p>
     <ul class="ref-list">
@@ -131,6 +153,8 @@
       <li><a href="reference/coordinate-systems-and-transforms.html">Coordinate systems and transforms</a> — the five spaces, matrices, and conversion functions (Lessons 5, 6).</li>
       <li><a href="reference/coordinate-systems-quiz.html">Coordinate systems quiz</a> — self-test to space out your recall (Lesson 5).</li>
       <li><a href="reference/tile-placement-pipeline.html">Tile placement pipeline</a> — command, coordinate, occupancy, and rendering boundaries for durable map interactions (Lesson 9).</li>
+      <li><a href="reference/terrain-generation-pipeline.html">Terrain generation pipeline</a> — distinct responsibilities for reproducible terrain, WFC adjacency, Voronoi regions, and levels (Lesson 10).</li>
+      <li><a href="reference/terrain-adjacency-rules.html">Terrain adjacency rules</a> — rule invariants, exhaustive neighbour checks, and dead-end responses (Lesson 11).</li>
     </ul>
 
     <h2 id="mission">The mission</h2>
