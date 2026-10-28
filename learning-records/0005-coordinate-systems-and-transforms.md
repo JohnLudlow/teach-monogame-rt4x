@@ -1,8 +1,11 @@
 # Coordinate Systems and Transforms
 
-Coordinate translation utilities have been implemented in the subject repository. The learner has built a `Transforms` class with methods for converting between screen, world, and grid coordinates, plus a `Camera` class for managing the view transform.
+Coordinate translation utilities have been implemented in the subject repository. The learner has
+built a `Transforms` class with methods for converting between screen, world, and grid coordinates,
+plus a `Camera` class for managing the view transform.
 
-The lesson focused on understanding the five coordinate systems (Input, Screen, World, Grid, Local), the relationship between them, and the mathematics of transform matrices.
+The lesson focused on understanding the five coordinate systems (Input, Screen, World, Grid, Local),
+the relationship between them, and the mathematics of transform matrices.
 
 ## Key insights
 

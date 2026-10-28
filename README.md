@@ -1,7 +1,9 @@
 # Teaching me how to make a 4x game in monogame
 
-This is a "teach" repository for the `monogame-rt4x` repository. It uses the [mattpocock / teach](https://github.com/mattpocock/skills/blob/main/skills/productivity/teach/SKILL.md)
-skill, along with other skills from [JohnLudlow/agents](https://github.com/JohnLudlow/agents) to help me learn all the skills necessary to create such a game.
+This is a "teach" repository for the `monogame-rt4x` repository. It uses the
+[mattpocock / teach](https://github.com/mattpocock/skills/blob/main/skills/productivity/teach/SKILL.md)
+skill, along with other skills from [JohnLudlow/agents](https://github.com/JohnLudlow/agents) to
+help me learn all the skills necessary to create such a game.
 
 ## Terms used in this repository
 
@@ -20,14 +22,19 @@ skill, along with other skills from [JohnLudlow/agents](https://github.com/JohnL
 
 ## What are we learning?
 
-We are learning how to make videogames, in particular (in this case) a fantasy real-time 4x game using MonoGame (v3.8.5+).
+We are learning how to make videogames, in particular (in this case) a fantasy real-time 4x game
+using MonoGame (v3.8.5+).
 
 ### What is a real-time 4x?
 
-A real-time 4x (RT4X) game is a game that combines real-time (with variable time controls) mechanics with 4x / empire building mechanics. Examples include Stellaris (scifi 4X) and Songs of Syx (fantasy city-builder with empire mechanics).
+A real-time 4x (RT4X) game is a game that combines real-time (with variable time controls) mechanics
+with 4x / empire building mechanics. Examples include Stellaris (scifi 4X) and Songs of Syx (fantasy
+city-builder with empire mechanics).
 
-- Realtime means extended events (such as sieges) happen continuously, rather than being boxed into turns. An extended battle or siege could be interrupted by a relief army, for example
-- Time controls allow players to control the speed of the game - speeding up to get through slow parts and slowing down or even pausing when more attention is needed
+- Realtime means extended events (such as sieges) happen continuously, rather than being boxed into
+  turns. An extended battle or siege could be interrupted by a relief army, for example
+- Time controls allow players to control the speed of the game - speeding up to get through slow
+  parts and slowing down or even pausing when more attention is needed
 - Typical 4x mechanics
   - Exploration
   - City management
@@ -49,9 +56,9 @@ Some givens:
 
 - I want simple lo-fi graphics. Lo-poly if 3D or pixelart if 2D
 
-- I want underground cities (a la Moria/Khazad-dum) as a mechanic so underground.
-  Games like Dwarf Fortress achieve this via z-levels, while games like Age Of Wonders
-  4 achieve it by having an underground layer. Teach me about both strategies
+- I want underground cities (a la Moria/Khazad-dum) as a mechanic so underground. Games like Dwarf
+  Fortress achieve this via z-levels, while games like Age Of Wonders 4 achieve it by having an
+  underground layer. Teach me about both strategies
 
 ### What needs to be taught?
 
@@ -59,8 +66,8 @@ Some givens:
 - Generating terrain
 - Managing game speed
   - Representing hills and mountains
-  - Representing terrain types such as grass, forests, ocean, deserts and tundra, as well as fantasy terrains
-    such as ashlands and hellscapes
+  - Representing terrain types such as grass, forests, ocean, deserts and tundra, as well as fantasy
+    terrains such as ashlands and hellscapes
 - Camera management
 - User interface
   - UI styling
@@ -70,14 +77,16 @@ Some givens:
   - Animated UI elements
 - Audio
   - Dynamically playing sound effects based on game events or UI interaction
-  - Positional audio (playing sound effects based on camera position in relation to the sound effect source)
+  - Positional audio (playing sound effects based on camera position in relation to the sound effect
+    source)
   - Background music, including dynamically generating background music
 - Very basic animation
 - Shaders
   - Lighting effects
   - Magic effects
   - Fire and weather effects
-- Rival, unit, character and advisor AI (not LLM, but using traditional techniques like Goal Oriented Action Planning)
+- Rival, unit, character and advisor AI (not LLM, but using traditional techniques like Goal
+  Oriented Action Planning)
 - Managing units
 - Managing cities
 - Managing factions and diplomacy
@@ -100,17 +109,23 @@ Some givens:
 ## What's our tech stack? Why?
 
 - Monogame 3.8.5+
-  - Considered Monogame, Stride, Raylib. Monogame is mature and well-featured, and 3.8.5 introduces important fixes
-  - The `GameEngineAdapter` project is plodding along, but I wanted to actually do something and wanted to see how this g oes.
+  - Considered Monogame, Stride, Raylib. Monogame is mature and well-featured, and 3.8.5 introduces
+    important fixes
+  - The `GameEngineAdapter` project is plodding along, but I wanted to actually do something and
+    wanted to see how this g oes.
 - .NET 10
   - I like it
 
 ## Any constraints?
 
-- Content management is performed using the new [content builder project][content-builder-project] rather than the MCGB config file.
-- All agent action is human-in-the-loop. The goal is for the human to learn how to do something, not have the agent do the thing.
-- All lesson reference material is stored in the teach project. This is where the ***teach agent*** should act.
-- All exercise output is stored in the `/monogame-rt4x` submodule / subfolder. This is where the user / human should (usually) act.
+- Content management is performed using the new [content builder project][content-builder-project]
+  rather than the MCGB config file.
+- All agent action is human-in-the-loop. The goal is for the human to learn how to do something, not
+  have the agent do the thing.
+- All lesson reference material is stored in the teach project. This is where the ***teach agent***
+  should act.
+- All exercise output is stored in the `/monogame-rt4x` submodule / subfolder. This is where the
+  user / human should (usually) act.
 - The user in this case is not an artist in any shape or form so focus on lo-fi graphics
 
 [content-builder-project]: https://docs.monogame.net/articles/getting_started/content_pipeline/content_builder_project.html
@@ -148,14 +163,17 @@ purpose:  The code the teach agent is teaching the user to develop - the goal of
 location: /monogame-rt4x/*
 ```
 
-The `monogame-rt4x` subfolder / submodule will contain code (mapped by the slnx in that repo root) that is developed as part of a lesson.
-Documents for the subject project will go to `monogame-rt4x/docs`. The goal is for someone to be able to use the subject repo independently
-without needing to use the teach repo (for example, once the teach phase has completed), so all documents and artifacts relevant to that
-purpose belong in that repo.
+The `monogame-rt4x` subfolder / submodule will contain code (mapped by the slnx in that repo root)
+that is developed as part of a lesson. Documents for the subject project will go to
+`monogame-rt4x/docs`. The goal is for someone to be able to use the subject repo independently
+without needing to use the teach repo (for example, once the teach phase has completed), so all
+documents and artifacts relevant to that purpose belong in that repo.
 
 #### Project roadmap, issues and tasks
 
-This repo uses github.com as its issue management system. The root project is at <https://github.com/users/JohnLudlow/projects/11/> and all work
-will be done against issues on that project, showing the progress of the learning exercise.
+This repo uses github.com as its issue management system. The root project is at
+<https://github.com/users/JohnLudlow/projects/11/> and all work will be done against issues on that
+project, showing the progress of the learning exercise.
 
-Lessons will be linked to issues in the teach repository, while implementation will be linked to issues in the subject repository.
+Lessons will be linked to issues in the teach repository, while implementation will be linked to
+issues in the subject repository.
